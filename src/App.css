@@ -1,0 +1,190 @@
+/* App-style layer: bottom tab bar, install banner, offline banner, consent row,
+   footer links. Existing colours and card styles are reused, nothing is redesigned.
+   Import this in main.jsx after index.css. */
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button,
+a {
+  -webkit-touch-callout: none;
+}
+
+/* ---------- Bottom tab bar (phones only) ---------- */
+.bottom-nav {
+  display: none;
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 2px 7px;
+  border: 0;
+  background: transparent;
+  color: #526157;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.bottom-nav-item.active {
+  color: var(--green);
+}
+
+.bottom-nav-item.active svg {
+  stroke-width: 2.6;
+}
+
+.bottom-nav-item:focus-visible {
+  outline: 3px solid #20bd68;
+  outline-offset: -3px;
+}
+
+@media (max-width: 760px) {
+  .bottom-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1200;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-top: 1px solid var(--border);
+    background: rgb(255 255 255 / 97%);
+    box-shadow: 0 -6px 24px rgb(15 62 37 / 8%);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  .app-shell {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The tab bar replaces the top menu and the header Profile button. */
+  .desktop-header-nav,
+  .site-header .uba-app-profile-button {
+    display: none;
+  }
+
+  .site-header {
+    flex-wrap: nowrap;
+    min-height: 60px;
+  }
+
+  /* 16px inputs stop iPhones from zooming the page when a field is focused. */
+  .field-group input,
+  .uba-search-box input,
+  .uba-profile-edit input,
+  .uba-calc-field input {
+    font-size: 16px;
+  }
+}
+
+/* ---------- Banners ---------- */
+.offline-banner,
+.install-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px max(5%, calc((100% - 1200px) / 2));
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.offline-banner {
+  background: #fdf1ef;
+  border-bottom: 1px solid #efc9c3;
+  color: #a12b2b;
+}
+
+.install-banner {
+  justify-content: space-between;
+  background: var(--light-green);
+  border-bottom: 1px solid var(--border);
+  color: #176b3c;
+}
+
+.install-banner-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.install-banner button {
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid #cfe5d4;
+  border-radius: 10px;
+  background: #fff;
+  color: #176b3c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.install-banner .install-banner-go {
+  border-color: transparent;
+  background: linear-gradient(135deg, #159653, #08753d);
+  color: #fff;
+}
+
+@media (display-mode: standalone) {
+  .install-banner {
+    display: none;
+  }
+}
+
+/* ---------- Terms consent on the booking form ---------- */
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 2px;
+  color: #3d5446;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.consent-row input[type='checkbox'] {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--green);
+}
+
+.consent-row a {
+  color: var(--green);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* ---------- Footer links ---------- */
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.footer-links a {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .install-banner {
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,297 @@
+
+/* =========================================================
+   UBAmoto customer UI fixes
+   Import this file after the existing application styles.
+   ========================================================= */
+
+:root {
+  --uba-ink: #17251f;
+  --uba-muted: #69766f;
+  --uba-green: #176b45;
+  --uba-green-dark: #105638;
+  --uba-border: #dce6df;
+  --uba-surface: #ffffff;
+  --uba-soft: #f3f7f4;
+  --uba-radius: 16px;
+}
+
+/* Prevent mobile viewport overflow */
+html {
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #78b89a;
+  outline-offset: 3px;
+}
+
+/* Logo images */
+.brand img,
+.site-logo img,
+.logo img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Header navigation */
+.site-header,
+.app-header,
+header.site-header {
+  position: relative;
+  z-index: 100;
+}
+
+.site-header nav,
+.app-header nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.site-header nav button,
+.app-header nav button {
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--uba-ink);
+  font-weight: 600;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.site-header nav button:hover,
+.app-header nav button:hover {
+  border-color: var(--uba-border);
+  background: var(--uba-soft);
+}
+
+.site-header nav button:active,
+.app-header nav button:active {
+  transform: translateY(1px);
+}
+
+/* Fare rows on the home screen */
+.fare-rule {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--uba-border);
+}
+
+.fare-rule:last-child {
+  border-bottom: 0;
+}
+
+.fare-rule > span {
+  color: var(--uba-muted);
+  line-height: 1.5;
+}
+
+.fare-rule > strong {
+  flex-shrink: 0;
+  color: var(--uba-ink);
+  text-align: right;
+  font-weight: 750;
+}
+
+/* Customer Fare Guide */
+.uba-fare-guide {
+  display: grid;
+  gap: 0;
+}
+
+.uba-fare-guide > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--uba-border);
+}
+
+.uba-fare-guide > div:last-of-type {
+  border-bottom: 0;
+}
+
+.uba-fare-guide > div > span {
+  display: grid;
+  gap: 5px;
+  color: var(--uba-ink);
+  font-weight: 600;
+}
+
+.uba-fare-guide small {
+  color: var(--uba-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.uba-fare-guide strong {
+  flex-shrink: 0;
+  color: var(--uba-green);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.uba-fare-guide > p {
+  margin: 16px 0 0;
+  color: var(--uba-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Back buttons */
+.uba-back-button,
+.back-button,
+button[aria-label="Go back"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid var(--uba-border);
+  border-radius: 12px;
+  background: var(--uba-surface);
+  color: var(--uba-ink);
+  font-weight: 600;
+}
+
+/* Destination input: preserve room for an icon if present */
+.destination-input-wrap,
+.destination-input-wrapper {
+  position: relative;
+  min-width: 0;
+}
+
+.destination-input-wrap input,
+.destination-input-wrapper input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+}
+
+.destination-input-wrap svg,
+.destination-input-wrapper svg {
+  flex-shrink: 0;
+}
+
+/* Overlay sizing and scroll behavior */
+.uba-customer-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.uba-customer-screen *,
+.uba-customer-screen *::before,
+.uba-customer-screen *::after {
+  box-sizing: border-box;
+}
+
+/* Glass panels with Safari support */
+.uba-glass-panel {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(220, 230, 223, 0.9);
+  border-radius: var(--uba-radius);
+  box-shadow: 0 10px 32px rgba(20, 45, 32, 0.07);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Help prevent cramped tablet layouts */
+@media (min-width: 700px) and (max-width: 1024px) {
+  .uba-customer-layout,
+  .uba-rides-layout,
+  .uba-profile-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Mobile header and navigation */
+@media (max-width: 699px) {
+  .site-header,
+  .app-header {
+    gap: 10px;
+  }
+
+  .site-header nav,
+  .app-header nav {
+    gap: 5px;
+  }
+
+  .site-header nav button,
+  .app-header nav button {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 0.88rem;
+  }
+
+  .fare-rule,
+  .uba-fare-guide > div {
+    gap: 12px;
+  }
+
+  .uba-customer-screen {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

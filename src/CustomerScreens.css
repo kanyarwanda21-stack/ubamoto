@@ -1,0 +1,974 @@
+/* Customer screens (My Rides, Help, Fare, Profile): one clean white theme. */
+
+:root {
+  --uba-green: #168044;
+  --uba-green-dark: #087447;
+  --uba-mint: #d9f3e4;
+  --uba-text: #073f3d;
+  --uba-muted: #53756b;
+  --uba-line: #dcebe3;
+  --uba-card: #f4faf6;
+}
+
+.uba-customer-screen {
+  width: 100%;
+  padding: 40px 5% 60px;
+  background: #fff;
+  color: var(--uba-text);
+  font-family: 'Manrope', sans-serif;
+}
+
+.uba-screen-content {
+  width: min(780px, 100%);
+  margin: 0 auto;
+}
+
+.uba-screen-content h1 {
+  margin: 0 0 8px;
+  color: var(--uba-text);
+  font-size: clamp(30px, 5vw, 42px);
+  font-weight: 800;
+  letter-spacing: -1.2px;
+}
+
+.uba-description {
+  margin: 0 0 22px;
+  color: var(--uba-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.uba-glass-panel {
+  padding: 16px;
+  border: 1px solid var(--uba-line);
+  border-radius: 20px;
+  background: var(--uba-card);
+  box-shadow: 0 10px 30px rgb(7 63 61 / 6%);
+}
+
+.uba-round-icon {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--uba-mint);
+  color: var(--uba-green-dark);
+}
+
+.uba-screen-content a {
+  color: var(--uba-green-dark);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.uba-form-error {
+  margin: 0;
+  color: #a12b2b;
+  font-size: 12px;
+}
+
+/* ---------- My Rides ---------- */
+.uba-rides-eyebrow {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--uba-green-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.uba-rides-list,
+.uba-help-list,
+.uba-profile-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.uba-ride-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--uba-line);
+  border-radius: 16px;
+  background: var(--uba-card);
+}
+
+.uba-ride-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.uba-ride-icon {
+  display: grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--uba-mint);
+  color: var(--uba-green-dark);
+}
+
+.uba-ride-date {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.uba-ride-date small {
+  color: var(--uba-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.uba-ride-status {
+  padding: 5px 10px;
+  border-radius: 30px;
+  background: #c4e4ff;
+  color: #07549b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.uba-ride-route {
+  display: flex;
+  gap: 14px;
+}
+
+.uba-ride-route-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5px 0;
+}
+
+.uba-pickup-dot,
+.uba-destination-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.uba-pickup-dot {
+  background: #16834b;
+}
+
+.uba-destination-dot {
+  background: #e59a35;
+}
+
+.uba-route-line {
+  flex: 1;
+  width: 2px;
+  min-height: 22px;
+  margin: 4px 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    #9bc7ae 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.uba-ride-route-details {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.uba-ride-location {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+
+.uba-ride-location small {
+  color: var(--uba-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.uba-ride-location strong {
+  font-size: 14px;
+}
+
+.uba-ride-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--uba-line);
+}
+
+.uba-ride-card-footer > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.uba-ride-fare-label {
+  color: var(--uba-muted);
+  font-size: 11px;
+}
+
+.uba-ride-fare {
+  color: #087d40;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.uba-ride-trip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--uba-green-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.uba-rides-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 34px 16px;
+  border: 1px solid var(--uba-line);
+  border-radius: 16px;
+  background: var(--uba-card);
+  color: var(--uba-text);
+  text-align: center;
+}
+
+.uba-rides-empty h3,
+.uba-rides-empty p {
+  margin: 0;
+}
+
+.uba-rides-empty p {
+  color: var(--uba-muted);
+}
+
+.uba-rides-empty button {
+  margin-top: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--uba-green-dark);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---------- Help ---------- */
+.uba-search-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  margin-bottom: 14px;
+  padding: 0 16px;
+  border: 2px solid #aab8af;
+  border-radius: 12px;
+  background: #fff;
+  color: #52675a;
+}
+
+.uba-search-box:focus-within {
+  border-color: var(--uba-green);
+  box-shadow: 0 0 0 3px rgb(22 128 68 / 15%);
+}
+
+.uba-search-box input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #24352b;
+  font: inherit;
+  font-size: 15px;
+}
+
+.uba-search-box input::placeholder {
+  color: #68766d;
+}
+
+.uba-search-box svg {
+  flex-shrink: 0;
+}
+
+.uba-search-box button {
+  display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: #52675a;
+  cursor: pointer;
+}
+
+.uba-help-item,
+.uba-profile-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--uba-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--uba-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.uba-help-item:hover,
+.uba-profile-item:hover {
+  background: #eef8f2;
+}
+
+.uba-help-item > svg,
+.uba-profile-item > svg {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--uba-green-dark);
+}
+
+.uba-help-item-text,
+.uba-profile-item-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.uba-help-item-text strong,
+.uba-profile-item-text strong,
+.uba-urgent-help strong {
+  color: var(--uba-text);
+  font-size: 14px;
+}
+
+.uba-help-item-text small,
+.uba-profile-item-text small,
+.uba-urgent-help small {
+  color: var(--uba-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.uba-help-detail {
+  margin: 6px 4px 4px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--uba-green);
+  color: #245d51;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.uba-chevron-open {
+  transform: rotate(90deg);
+}
+
+.uba-no-results {
+  padding: 15px;
+  color: #164e42;
+  text-align: center;
+}
+
+.uba-urgent-help {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 13px;
+  border: 1px solid #cce8d9;
+  border-radius: 14px;
+  background: #dff5e9;
+}
+
+.uba-urgent-help > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---------- Profile ---------- */
+.uba-profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 15px;
+  background: #fff;
+}
+
+.uba-avatar {
+  display: grid;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #0a9a61, #00683e);
+  color: #c5f3dc;
+}
+
+.uba-profile-identity {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.uba-profile-identity strong {
+  font-size: 15px;
+}
+
+.uba-profile-identity span {
+  color: var(--uba-muted);
+  font-size: 13px;
+}
+
+.uba-edit-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 12px;
+  border: 1px solid var(--uba-line);
+  border-radius: 10px;
+  background: #fff;
+  color: #087b50;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.uba-profile-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 3px;
+}
+
+.uba-profile-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #104a3b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.uba-profile-edit input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d6e8da;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--uba-text);
+  font: inherit;
+}
+
+.uba-primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0ba366, #087447);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.uba-profile-notice {
+  margin: 0 0 12px;
+  padding: 11px;
+  border-radius: 10px;
+  background: #e5f6ec;
+  color: #164e42;
+  font-size: 12px;
+}
+
+.uba-profile-item {
+  min-height: 54px;
+}
+
+/* ---------- Fare guide ---------- */
+.uba-fare-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.uba-fare-guide > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--uba-line);
+  border-radius: 16px;
+  background: var(--uba-card);
+  font-size: 14px;
+}
+
+.uba-fare-guide > div > span small {
+  display: block;
+  margin-top: 3px;
+  color: var(--uba-muted);
+  font-size: 11px;
+}
+
+.uba-fare-guide > div > strong {
+  flex-shrink: 0;
+  color: #087d40;
+  font-weight: 800;
+}
+
+.uba-fare-guide > p {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--uba-line);
+  border-radius: 16px;
+  background: var(--uba-card);
+  color: #3a6b5d;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---------- Focus and responsive ---------- */
+.uba-customer-screen button:focus-visible,
+.uba-customer-screen a:focus-visible {
+  outline: 3px solid #8dc9a5;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .uba-customer-screen {
+    padding: 24px 12px 40px;
+  }
+
+  .uba-glass-panel {
+    padding: 10px;
+  }
+
+  .uba-fare-guide > div {
+    gap: 10px;
+    padding: 14px 12px;
+  }
+}
+
+/* ---------- Added: actions, install card, summary, calculator, legal ---------- */
+.uba-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.uba-screen-content a.uba-action-link,
+.uba-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--uba-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--uba-green-dark);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.uba-action-link:hover {
+  background: #eef8f2;
+}
+
+.uba-action-primary,
+.uba-screen-content a.uba-action-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #0ba366, #087447);
+  color: #fff;
+}
+
+.uba-action-primary:hover {
+  background: linear-gradient(135deg, #0a9a61, #06623c);
+}
+
+.uba-danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #efc9c3;
+  border-radius: 12px;
+  background: #fdf1ef;
+  color: #a12b2b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.uba-clear-data {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.uba-confirm-row {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #efc9c3;
+  border-radius: 14px;
+  background: #fdf1ef;
+  color: #7a2020;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.uba-confirm-row p {
+  margin: 0;
+}
+
+.uba-clear-row {
+  justify-content: flex-end;
+}
+
+.uba-support-missing {
+  margin: 8px 0 0;
+  color: var(--uba-muted);
+  font-size: 12px;
+}
+
+.uba-urgent-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.uba-urgent-text .uba-action-row {
+  margin-top: 6px;
+}
+
+.uba-help-detail p {
+  margin: 0 0 8px;
+}
+
+.uba-install-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 13px;
+  border: 1px solid #cce8d9;
+  border-radius: 14px;
+  background: #dff5e9;
+}
+
+.uba-install-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.uba-install-text strong {
+  color: var(--uba-text);
+  font-size: 14px;
+}
+
+.uba-install-text small {
+  color: #245d51;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.uba-install-button {
+  flex-shrink: 0;
+  min-height: 42px;
+}
+
+.uba-version {
+  margin: 14px 0 2px;
+  color: var(--uba-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.uba-rides-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.uba-rides-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--uba-line);
+  border-radius: 14px;
+  background: var(--uba-card);
+}
+
+.uba-rides-summary span {
+  color: var(--uba-muted);
+  font-size: 12px;
+}
+
+.uba-rides-summary strong {
+  color: #087d40;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.uba-ride-details {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.uba-ride-details > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.uba-ride-details dt {
+  color: var(--uba-muted);
+}
+
+.uba-ride-details dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.uba-ride-card .uba-action-row {
+  margin-top: 0;
+}
+
+.uba-fare-tool {
+  margin-top: 16px;
+}
+
+.uba-fare-tool h2 {
+  margin: 0 0 6px;
+  color: var(--uba-text);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.uba-calc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #104a3b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.uba-calc-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid #d6e8da;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--uba-text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.uba-calc-result {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.uba-calc-result > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--uba-line);
+  font-size: 14px;
+}
+
+.uba-calc-result > div:last-child {
+  border-bottom: 0;
+}
+
+.uba-calc-result dt {
+  color: var(--uba-muted);
+}
+
+.uba-calc-result dd {
+  margin: 0;
+  color: var(--uba-text);
+  font-weight: 800;
+}
+
+.uba-calc-total dt,
+.uba-calc-total dd {
+  color: #087d40;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.uba-fare-cta {
+  margin-top: 16px;
+}
+
+.uba-legal-panel {
+  padding: 20px;
+  line-height: 1.7;
+}
+
+.uba-legal-panel p {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.uba-legal-panel h2 {
+  margin: 22px 0 8px;
+  color: var(--uba-text);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+@media (max-width: 480px) {
+  .uba-install-card {
+    flex-wrap: wrap;
+  }
+
+  .uba-install-button {
+    width: 100%;
+  }
+
+  .uba-legal-panel {
+    padding: 14px;
+  }
+}
+
+/* ---------- Added: live ride status, rider box, find-a-ride ---------- */
+.uba-status-requested {
+  background: #c4e4ff;
+  color: #07549b;
+}
+
+.uba-status-assigned,
+.uba-status-in_progress {
+  background: #b4e8ce;
+  color: #067246;
+}
+
+.uba-status-completed,
+.uba-status-cancelled {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.uba-rider-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #cce8d9;
+  border-radius: 14px;
+  background: #dff5e9;
+}
+
+.uba-rider-box > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.uba-rider-box span {
+  color: var(--uba-muted);
+  font-size: 11px;
+}
+
+.uba-rider-box strong {
+  color: var(--uba-text);
+  font-size: 15px;
+}
+
+.uba-rider-box small {
+  color: #245d51;
+  font-size: 12px;
+}
+
+.uba-refresh-row {
+  margin: 0 0 12px;
+}
+
+.uba-find-ride {
+  margin-top: 20px;
+}
+
+.uba-find-ride h2 {
+  margin: 0 0 6px;
+  color: var(--uba-text);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.uba-find-ride .uba-primary-button {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.uba-ride-card .uba-confirm-row {
+  margin-top: 0;
+}

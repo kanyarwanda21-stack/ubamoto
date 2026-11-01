@@ -1,0 +1,213 @@
+/* Rider and admin portals. Same colours and card style as the customer app. */
+.portal {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 24px 5% 60px;
+  color: #17251d;
+}
+
+.portal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.portal h1 {
+  margin: 0;
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(24px, 5vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.8px;
+}
+
+.portal h2 {
+  margin: 0 0 8px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 18px;
+}
+
+.portal-note {
+  margin: 4px 0;
+  color: #526157;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.portal-error {
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px solid #efc9c3;
+  border-radius: 12px;
+  background: #fdf1ef;
+  color: #a12b2b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.portal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #dcebe3;
+  border-radius: 16px;
+  background: #f4faf6;
+}
+
+.portal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.portal-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.portal-price {
+  color: #087d40;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.portal-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.portal-tabs button {
+  min-height: 44px;
+  padding: 8px 6px;
+  border: 1px solid #dcebe3;
+  border-radius: 12px;
+  background: #fff;
+  color: #3d5446;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.portal-tabs button.active {
+  border-color: transparent;
+  background: #168044;
+  color: #fff;
+}
+
+.portal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #159653, #08753d);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.portal-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.portal-btn-light {
+  border: 1px solid #cfe5d4;
+  background: #fff;
+  color: #176b3c;
+}
+
+.portal-btn-danger {
+  border: 1px solid #efc9c3;
+  background: #fdf1ef;
+  color: #a12b2b;
+}
+
+.portal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.portal-actions .portal-btn,
+.portal-actions select {
+  flex: 1 1 140px;
+}
+
+.portal-link {
+  color: #176b3c;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.portal-pill {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 30px;
+  background: #c4e4ff;
+  color: #07549b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.portal-assigned,
+.portal-in_progress,
+.portal-verified {
+  background: #b4e8ce;
+  color: #067246;
+}
+
+.portal-completed,
+.portal-cancelled,
+.portal-suspended {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.portal-pending {
+  background: #fdebc8;
+  color: #8a5a00;
+}
+
+.portal-login label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #25392c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.portal input,
+.portal select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #dce6de;
+  border-radius: 10px;
+  background: #fff;
+  color: #17251d;
+  font: inherit;
+  font-size: 16px;
+}
+
+.portal-filter {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 760px) {
+  .portal {
+    padding-bottom: 40px;
+  }
+}

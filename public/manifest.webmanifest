@@ -1,0 +1,23 @@
+{
+  "name": "UBAmoto",
+  "short_name": "UBAmoto",
+  "description": "Book a moto in Kigali. Choose your pickup, see your fare, and send your ride request.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b3d2e",
+  "theme_color": "#0b3d2e",
+  "lang": "en",
+  "categories": ["travel", "navigation"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Book a ride", "url": "/#/book" },
+    { "name": "My rides", "url": "/#/rides" }
+  ]
+}

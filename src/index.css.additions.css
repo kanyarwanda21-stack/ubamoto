@@ -1,0 +1,40 @@
+/* Add these rules to the end of your existing src/index.css.
+   Also delete the unused ".hero-primary-button" rule. Everything else in
+   index.css stays as it is. */
+
+/* "Sending your request..." (was wrongly styled red) */
+.booking-pending {
+  margin: 12px 0 0;
+  color: #52675a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Route / estimate errors (was shown with green success styling) */
+.estimate-error {
+  margin: 16px 0 0;
+  padding: 14px;
+  border: 1px solid #efc9c3;
+  border-radius: 12px;
+  background: #fdf1ef;
+  color: #a12b2b;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* "Back to home" is now a link instead of a button */
+.back-home-button:focus-visible,
+.header-nav-link:focus-visible,
+.map-target-button:focus-visible,
+.gps-button:focus-visible,
+.confirm-button:focus-visible,
+.estimate-button:focus-visible {
+  outline: 3px solid #20bd68;
+  outline-offset: 3px;
+}
+
+/* Keep the review card spaced now that it sits outside the destination form */
+.estimate-message + .ride-review-card {
+  margin-top: 14px;
+}

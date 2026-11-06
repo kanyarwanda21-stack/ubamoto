@@ -14,44 +14,82 @@ supabase secrets set QUOTE_SECRET=$(openssl rand -hex 32)
 supabase secrets set ALLOWED_ORIGIN=https://your-domain.rw
 ```
 
-## Deploy
+## Database
+
+Schema lives in git: `supabase/migrations/20261102100000_ride_platform.sql`.
+It creates (or adds missing pieces to) `ride_bookings`, `riders` and `staff`,
+with unique booking references, foreign keys, status checks, indexes, and RLS
+that denies all `anon` / `authenticated` access. Only Edge Functions (service
+role) can read or write these tables.
+
+### Before you apply this to a live project
+
+1. In Supabase Studio → Table Editor (or `npx supabase db dump --schema public`),
+   check whether `ride_bookings` already exists and what type `id` is.
+2. This migration uses **uuid** ids (Auth user ids are uuid). It will **not**
+   change an existing `bigint` id. If types differ, stop and reconcile first.
+3. Take a backup (Studio → Database → Backups, or a dump).
+
+### Apply
+
+**Linked remote project (preferred):**
 ```
-supabase functions deploy search-places
-supabase functions deploy estimate-route
-supabase functions deploy create-ride-booking
+npx supabase db push
 ```
 
+**Or** Studio → SQL Editor → paste the contents of
+`supabase/migrations/20261102100000_ride_platform.sql` → Run.
+
+Local reset (destroys local DB only, not production):
+```
+npx supabase db reset
+```
+`supabase/seed.sql` is intentionally empty. Do not put real user ids in it.
+
+### Make yourself an admin
+
+1. Supabase → Authentication → Users → Add user (your email + a strong password).
+2. SQL Editor (use the new user's UUID, not a placeholder):
+```
+insert into public.staff (id, role) values ('YOUR-USER-ID', 'admin');
+```
+
+## Deploy Edge Functions
+
+JWT checks are set in `supabase/config.toml`. Customer functions are public
+(no user account). Rider and admin functions require a signed-in user JWT.
+
+```
+npx supabase functions deploy search-places
+npx supabase functions deploy estimate-route
+npx supabase functions deploy create-ride-booking
+npx supabase functions deploy track-ride
+npx supabase functions deploy cancel-ride-booking
+npx supabase functions deploy rider-api
+npx supabase functions deploy admin-api
+```
+
+Do not pass `--no-verify-jwt` for `rider-api` or `admin-api`. Those two must
+keep `verify_jwt = true`.
+
+### If customer function calls return 401 "Invalid JWT"
+
+The browser sends the publishable key, which is not a user JWT. Customer
+functions must stay `verify_jwt = false` in `config.toml` (already set).
+Redeploy those functions after changing the config. They still check signed
+quotes, phones, and ride tokens themselves.
+
 ## Before you go live
+
 - Fill in `SUPPORT.phone` / `SUPPORT.email` in `src/config.js`.
-- `ride_bookings` needs a `created_at timestamptz default now()` column and an `id`.
-  Existing rows keep their old phone format; new ones are saved as `+2507XXXXXXXX`.
-- Keep RLS on `ride_bookings` with no public insert policy: only the Edge Function
-  (service role) writes to it.
 - Fare numbers live in `src/fare.js` and `supabase/functions/_shared/common.ts`.
   Change both together. The server's number is the one that counts.
 - Check Mapbox's terms for storing geocoding results (you store the destination name).
-
-## If every function call returns 401 "Invalid JWT"
-Your app uses a publishable key (`sb_publishable_...`), which is not a JWT. Edge Functions
-check JWTs by default, so either deploy with `--no-verify-jwt`:
-```
-supabase functions deploy search-places --no-verify-jwt
-supabase functions deploy estimate-route --no-verify-jwt
-supabase functions deploy create-ride-booking --no-verify-jwt
-```
-or put this in `supabase/config.toml`:
-```
-[functions.search-places]
-verify_jwt = false
-[functions.estimate-route]
-verify_jwt = false
-[functions.create-ride-booking]
-verify_jwt = false
-```
-These functions are public by design and validate everything themselves (signed quotes,
-phone limits), so this is safe.
+- Confirm in Studio that RLS is on for `ride_bookings`, `riders` and `staff`,
+  and that a REST request with the publishable key cannot read those tables.
 
 ## Installing the app on phones (PWA)
+
 - Files: `index.html`, `public/manifest.webmanifest`, `public/sw.js`, `public/icons/*`.
   Keep `public/ubamoto-pin.svg` (your logo) where it is.
 - The install button and service worker only work on **https** (or localhost).
@@ -66,36 +104,15 @@ phone limits), so this is safe.
   in `public/sw.js` to `ubamoto-v2`, and so on.
 
 ## Terms and Privacy
+
 - Edit the wording in `src/legalContent.js`; company name, address, date and support details are in `src/config.js`.
 - Fill every `[bracketed]` placeholder (legal name, launch date, retention period, support email).
 - Have a Rwandan lawyer review both pages before launch.
 - Changing `TERMS_VERSION` in `src/config.js` makes everyone accept again.
-- `create-ride-booking` now refuses requests without `accepted_terms: true`. Redeploy it.
+- `create-ride-booking` refuses requests without `accepted_terms: true`. Redeploy it if you change that check.
 
+## Using the portals
 
-## Rider portal, cancelling and calling the rider (new)
-
-### 1. Database (once)
-Supabase > SQL Editor > paste `supabase/migrations/20261101000000_ride_platform.sql` > Run.
-It adds ride statuses, the `riders` and `staff` tables, and locks all three tables so the
-browser can never read them directly. Only the Edge Functions can.
-
-### 2. Make yourself an admin
-1. Supabase > Authentication > Users > Add user (your email + a strong password).
-2. SQL Editor: `insert into public.staff (id, role) values ('YOUR-USER-ID', 'admin');`
-
-### 3. Deploy all five functions
-```
-npx supabase functions deploy create-ride-booking --no-verify-jwt
-npx supabase functions deploy track-ride --no-verify-jwt
-npx supabase functions deploy cancel-ride-booking --no-verify-jwt
-npx supabase functions deploy rider-api --no-verify-jwt
-npx supabase functions deploy admin-api --no-verify-jwt
-```
-(`rider-api` and `admin-api` check the signed-in user themselves, so `--no-verify-jwt` is fine.)
-The other two (`search-places`, `estimate-route`) are unchanged.
-
-### 4. Using it
 - Admin: open `https://your-site/#/admin`, sign in, then Riders > "Add a rider", then press **Verify**.
 - Rider: opens `https://your-site/#/rider` on their phone, signs in with the email and temporary
   password you gave. They see new requests (pickup area only), accept one, and then see the
@@ -105,6 +122,7 @@ The other two (`search-places`, `estimate-route`) are unchanged.
 - Support: Admin > Find a ride, then type the customer's reference or phone number.
 
 ### How customers stay safe without accounts
+
 - Each booking returns a long secret code that is saved only on the customer's phone (only its
   hash is stored in the database) plus a short reference such as UB-ABCD-EFGH.
 - To see or cancel a ride you need the secret code, or the reference together with the phone

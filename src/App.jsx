@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   CircleHelp,
   CircleUserRound,
+  ChevronRight,
   Clock3,
   Compass,
   LocateFixed,
@@ -50,14 +51,15 @@ import {
   retrievePlace,
   searchPlaces,
   trackRides,
+  riderApi,
 } from './lib/api';
 import { loadJson, removeKeys, saveJson } from './lib/storage';
 import { TERMS_VERSION } from './config';
 import { useInstallPrompt } from './lib/pwa';
+import { useSession } from './lib/auth';
 
-// Rider and admin screens are loaded only when someone opens #/rider or #/admin.
+// Rider screens are loaded only when someone opens #/rider. Admin code is not shipped here.
 const RiderPortal = lazy(() => import('./riderportal.jsx'));
-const AdminPortal = lazy(() => import('./adminportal.jsx'));
 
 const ACTIVE_STATUSES = ['requested', 'assigned', 'in_progress'];
 
@@ -91,7 +93,7 @@ function newSessionId() {
   );
 }
 
-const SCREENS = ['rides', 'help', 'fare', 'profile', 'terms', 'privacy'];
+const SCREENS = ['rides', 'help', 'fare', 'profile', 'terms', 'privacy', 'ride-with-us'];
 const NAV_ITEMS = [
   ['home', 'Home'],
   ['book', 'Book a Ride'],
@@ -128,7 +130,7 @@ const destinationIcon = makePin('destination');
 // refresh work without adding a router dependency.
 function readRoute() {
   const name = window.location.hash.replace(/^#\/?/, '');
-  return name === 'book' || name === 'rider' || name === 'admin' || SCREENS.includes(name)
+  return name === 'book' || name === 'rider' || SCREENS.includes(name)
     ? name
     : 'home';
 }
@@ -192,6 +194,20 @@ function RouteFitter({ coordinates }) {
 
 function App() {
   const [route, go] = useRoute();
+  const session = useSession();
+
+  useEffect(() => {
+    if (!session || route === 'rider') return;
+    let active = true;
+    riderApi('me')
+      .then((result) => {
+        if (active && result?.rider) navigate('rider');
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [session, route]);
 
   const [pickupPosition, setPickupPosition] = useState(KIGALI);
   const [destinationPosition, setDestinationPosition] = useState(null);
@@ -886,8 +902,8 @@ function App() {
     </>
   );
 
-  // Rider and admin portals use their own simple header, with no customer tab bar.
-  if (route === 'rider' || route === 'admin') {
+  // Rider portal uses its own simple header, with no customer tab bar.
+  if (route === 'rider') {
     return (
       <div className="app-shell screen-mode">
         <header className="site-header">
@@ -900,7 +916,7 @@ function App() {
         </header>
         <main>
           <Suspense fallback={<p className="portal-note" style={{ padding: 24 }}>Loading...</p>}>
-            {route === 'rider' ? <RiderPortal /> : <AdminPortal />}
+            <RiderPortal />
           </Suspense>
         </main>
       </div>
@@ -1088,6 +1104,19 @@ function App() {
                       <ShieldCheck size={17} /> Fare transparency
                     </span>
                   </div>
+
+                  <button
+                    type="button"
+                    className="rider-application-card"
+                    onClick={() => navigate('ride-with-us')}
+                  >
+                    <span className="rider-application-icon"><Bike size={22} /></span>
+                    <span>
+                      <strong>Earn with UBAmoto</strong>
+                      <small>Ride with us and start earning</small>
+                    </span>
+                    <ChevronRight size={20} />
+                  </button>
                 </div>
 
                 <section className="booking-card home-fare-card">
@@ -1556,11 +1585,10 @@ function App() {
                 )}
 
                 <p className="demo-note">
-                  Fare: {formatRwf(BASE_FARE_RWF)} base, then RWF{' '}
-                  {FARE_TIERS[0].ratePerKm}/km up to 8 km, RWF{' '}
-                  {FARE_TIERS[1].ratePerKm}/km from 8 to 20 km and RWF{' '}
-                  {OVER_20_KM_RATE_RWF}/km beyond. Minimum fare{' '}
-                  {formatRwf(MIN_FARE_RWF)}. Trips are limited to {MAX_TRIP_KM} km.
+                  Trips up to 2 km cost RWF 589. Above 2 km: RWF 250 base, then
+                  RWF 200/km up to 8 km, RWF 140/km from 8 to 20 km and
+                  RWF 100/km beyond 20 km. Minimum fare is RWF 500.
+                  Trips are limited to {MAX_TRIP_KM} km.
                 </p>
               </section>
             </section>

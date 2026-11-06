@@ -972,3 +972,42 @@
 .uba-ride-card .uba-confirm-row {
   margin-top: 0;
 }
+.rider-application-card {
+  width: 100%;
+  margin-top: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(17, 24, 39, 0.72);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.rider-application-card > span:nth-child(2) { display: grid; flex: 1; }
+.rider-application-card small { color: rgba(255,255,255,.72); margin-top: 2px; }
+.rider-application-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--uba-green, #16a34a);
+}
+.rider-application-form { display: grid; gap: 14px; }
+.rider-application-form label { display: grid; gap: 7px; font-weight: 700; }
+.rider-application-form input:not([type="checkbox"]) {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  padding: 12px;
+  color: inherit;
+  background: rgba(0,0,0,.18);
+}
+.rider-consent { grid-template-columns: 20px 1fr; align-items: start; font-weight: 500 !important; }
+.rider-consent input { margin-top: 3px; }
+.rider-submit { width: 100%; }
+.rider-application-error { color: #fca5a5; }
+.rider-application-success { text-align: center; display: grid; justify-items: center; gap: 8px; }

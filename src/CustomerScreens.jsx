@@ -23,6 +23,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import './CustomerScreens.css';
+import { submitRiderApplication } from './lib/api';
 import {
   BASE_FARE_RWF,
   FARE_TIERS,
@@ -611,6 +612,72 @@ function HelpScreen({ install, onNavigate }) {
   );
 }
 
+/* ---------- Rider application ---------- */
+
+function RiderApplicationScreen() {
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+    plate_number: '',
+    licence_number: '',
+    consent: false,
+  });
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage('');
+    try {
+      await submitRiderApplication(form);
+      setSubmitted(true);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (submitted) {
+    return (
+      <section className="uba-screen-content">
+        <div className="uba-glass-panel rider-application-success">
+          <CheckCircle2 size={42} />
+          <h1>Application received</h1>
+          <p>UBAmoto will review your details and contact you by phone.</p>
+        </div>
+      </section>
+    );
+  }
+
+  function update(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  return (
+    <section className="uba-screen-content">
+      <h1>Ride with UBAmoto</h1>
+      <p className="uba-description">Tell us about yourself to apply as a rider.</p>
+      <form className="uba-glass-panel rider-application-form" onSubmit={submit}>
+        <label>Name<input required maxLength={100} value={form.name} onChange={(e) => update('name', e.target.value)} /></label>
+        <label>Phone<input required type="tel" maxLength={20} value={form.phone} onChange={(e) => update('phone', e.target.value)} /></label>
+        <label>Motorcycle plate<input required maxLength={20} value={form.plate_number} onChange={(e) => update('plate_number', e.target.value)} /></label>
+        <label>Licence number<input required maxLength={50} value={form.licence_number} onChange={(e) => update('licence_number', e.target.value)} /></label>
+        <label className="rider-consent">
+          <input required type="checkbox" checked={form.consent} onChange={(e) => update('consent', e.target.checked)} />
+          <span>I consent to UBAmoto processing these details for rider onboarding.</span>
+        </label>
+        {message && <p className="rider-application-error" role="alert">{message}</p>}
+        <button className="primary-button rider-submit" type="submit" disabled={busy}>
+          {busy ? 'Sending...' : 'Submit application'}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 /* ---------- Profile ---------- */
 
 function ProfileScreen({ profile, install, onSave, onNavigate, onClearAll }) {
@@ -823,7 +890,7 @@ function FareCalculator() {
 }
 
 function FareScreen({ onNavigate }) {
-  const examples = [2, 5, 8, 12, 20];
+  const examples = [1, 2, 5, 8, 12, 20, 30, 40];
 
   return (
     <section className="uba-screen-content">
@@ -952,6 +1019,7 @@ export default function CustomerScreens({
       )}
       {screen === 'help' && <HelpScreen install={install} onNavigate={onNavigate} />}
       {screen === 'fare' && <FareScreen onNavigate={onNavigate} />}
+      {screen === 'ride-with-us' && <RiderApplicationScreen />}
       {screen === 'profile' && (
         <ProfileScreen
           profile={profile}

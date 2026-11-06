@@ -1,8 +1,10 @@
 import {
   MAX_TRIP_KM,
   corsHeaders,
+  allocateFare,
   fail,
   fareForKm,
+  FARE_POLICY_VERSION,
   isValidPoint,
   json,
   signQuote,
@@ -49,6 +51,7 @@ Deno.serve(async (req) => {
 
     const minutes = Math.max(1, Math.round(route.duration / 60));
     const fare = fareForKm(km);
+    const allocation = allocateFare(fare);
     const expires_at = Date.now() + QUOTE_LIFETIME_MS;
 
     const quote = await signQuote({
@@ -57,6 +60,9 @@ Deno.serve(async (req) => {
       km,
       minutes,
       fare,
+      farePolicyVersion: FARE_POLICY_VERSION,
+      riderPayout: allocation.riderPayout,
+      ubamotoCommission: allocation.ubamotoCommission,
       exp: expires_at,
     });
 

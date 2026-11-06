@@ -45,6 +45,7 @@ export const estimateRoute = (pickup, destination) =>
   call('estimate-route', { pickup, destination });
 
 export const createBooking = (payload) => call('create-ride-booking', payload);
+export const submitRiderApplication = (payload) => call('rider-apply', payload);
 
 // ---------- Ride tracking and cancelling (customers, no account) ----------
 // Each ride is proven with { reference, token } (this device) or { reference, phone }.

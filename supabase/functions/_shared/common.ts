@@ -50,20 +50,31 @@ export function normalizePhone(input: string) {
 export const MIN_FARE_RWF = 500;
 export const BASE_FARE_RWF = 250;
 export const MAX_TRIP_KM = 40;
-
-const TIERS = [
-  { fromKm: 0, toKm: 8, rate: 160 },
-  { fromKm: 8, toKm: 20, rate: 140 },
-  { fromKm: 20, toKm: Infinity, rate: 140 },
-];
+export const FARE_POLICY_VERSION = 'ubamoto-fare-2026-11-01';
 
 export function fareForKm(distanceKm: number) {
-  const km = Math.max(0, Math.round(distanceKm * 100) / 100);
-  let charge = 0;
-  for (const t of TIERS) {
-    charge += Math.max(0, Math.min(km, t.toKm) - t.fromKm) * t.rate;
+  const km = Number(distanceKm);
+  if (!Number.isFinite(km) || km <= 0) throw new Error('Distance must be positive.');
+  if (km > MAX_TRIP_KM) throw new Error('Trips are limited to 40 km.');
+  if (km <= 2) return 589;
+  if (km <= 8) return Math.max(MIN_FARE_RWF, Math.ceil(BASE_FARE_RWF + km * 200));
+  if (km <= 20) {
+    return Math.max(MIN_FARE_RWF, Math.ceil(BASE_FARE_RWF + 8 * 200 + (km - 8) * 140));
   }
-  return Math.max(MIN_FARE_RWF, Math.round(BASE_FARE_RWF + charge));
+  return Math.max(
+    MIN_FARE_RWF,
+    Math.ceil(BASE_FARE_RWF + 8 * 200 + 12 * 140 + (km - 20) * 100)
+  );
+}
+
+export function allocateFare(customerFare: number) {
+  if (!Number.isInteger(customerFare) || customerFare <= 0) throw new Error('Invalid customer fare.');
+  const riderPayout = Math.max(500, Math.round(customerFare * 0.85));
+  return {
+    customerFare,
+    riderPayout,
+    ubamotoCommission: customerFare - riderPayout,
+  };
 }
 
 // ---------- Signed quotes (HMAC-SHA256) ----------
@@ -101,6 +112,9 @@ export type Quote = {
   km: number;
   minutes: number;
   fare: number;
+  farePolicyVersion: string;
+  riderPayout: number;
+  ubamotoCommission: number;
   exp: number; // epoch ms
 };
 

@@ -138,7 +138,6 @@ Deno.serve(async (req) => {
     // 5. Create a rider account.
     if (action === 'create_rider') {
       const email = String(body.email ?? '').trim().toLowerCase();
-      const password = String(body.password ?? '');
       const name = String(body.name ?? '').trim();
       const phone = normalizePhone(String(body.phone ?? ''));
       const plate = String(body.plate_number ?? '')
@@ -150,10 +149,6 @@ Deno.serve(async (req) => {
         return fail('Enter a valid email.');
       }
 
-      if (password.length < 8) {
-        return fail('The temporary password needs at least 8 characters.');
-      }
-
       if (!name || name.length > 100) {
         return fail('Enter the rider\'s name.');
       }
@@ -162,10 +157,11 @@ Deno.serve(async (req) => {
         return fail('Enter a valid Rwandan phone number.');
       }
 
-      const created = await db.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
+      const created = await db.auth.admin.inviteUserByEmail(email, {
+        data: { name },
+        ...(String(body.redirect_to ?? '').trim()
+          ? { redirectTo: String(body.redirect_to).trim() }
+          : {}),
       });
 
       if (created.error || !created.data.user) {
@@ -234,36 +230,18 @@ Deno.serve(async (req) => {
         return fail('Missing rider or booking information.');
       }
 
-      const { data: rider, error: riderError } = await db
-        .from('riders')
-        .select('status')
-        .eq('id', riderId)
-        .maybeSingle();
-
-      if (riderError) {
-        console.error('Rider lookup failed:', riderError);
-        return fail('Could not check rider verification.', 500);
-      }
-
-      if (!rider || rider.status !== 'verified') {
-        return fail('Only verified riders can be assigned.');
-      }
-
-      const { data, error } = await db
-        .from('ride_bookings')
-        .update({
-          rider_id: riderId,
-          status: 'assigned',
-          assigned_at: new Date().toISOString(),
-        })
-        .eq('id', bookingId)
-        .in('status', ['requested', 'assigned'])
-        .select('id')
-        .maybeSingle();
+      const { data, error } = await db.rpc('assign_booking_with_capacity', {
+        p_booking_id: bookingId,
+        p_rider_id: riderId,
+      });
 
       if (error) {
         console.error('Booking assignment failed:', error);
-        return fail('Could not assign this ride.', 500);
+        return fail(error.message.includes('two active jobs')
+          ? 'This rider already has two active jobs.'
+          : error.message.includes('verified')
+            ? 'Only verified riders can be assigned.'
+            : 'Could not assign this ride.', 409);
       }
 
       return data
@@ -271,7 +249,42 @@ Deno.serve(async (req) => {
         : fail('This ride can no longer be assigned.', 409);
     }
 
-    // 8. Cancel a booking through administrator control.
+    // 8. List rider applications.
+    if (action === 'list_applications') {
+      const status = String(body.status ?? '');
+      let query = db
+        .from('rider_applications')
+        .select('id,name,phone,plate_number,licence_number,status,created_at,reviewed_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (['new', 'approved', 'rejected'].includes(status)) {
+        query = query.eq('status', status);
+      }
+      const { data, error } = await query;
+      if (error) return fail('Could not load rider applications.', 500);
+      return json({ success: true, applications: data ?? [] });
+    }
+
+    // 9. Review an application without exposing applicant consent or IP data.
+    if (action === 'review_application') {
+      if (!['approved', 'rejected'].includes(body.status)) {
+        return fail('Invalid application status.');
+      }
+      const { data, error } = await db
+        .from('rider_applications')
+        .update({
+          status: body.status,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: userId,
+        })
+        .eq('id', String(body.application_id ?? ''))
+        .select('id')
+        .maybeSingle();
+      if (error) return fail('Could not update the application.', 500);
+      return data ? json({ success: true }) : fail('Application not found.', 404);
+    }
+
+    // 10. Cancel a booking through administrator control.
     if (action === 'cancel') {
       const bookingId = String(body.booking_id ?? '');
 

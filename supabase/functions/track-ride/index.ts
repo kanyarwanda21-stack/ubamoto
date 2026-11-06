@@ -25,6 +25,6 @@ Deno.serve(async (req) => {
 
     return json({ success: true, results });
   } catch {
-    return fail('Invalid request.');
+    return fail(',');
   }
 });

@@ -30,6 +30,14 @@ Deno.serve(async (req) => {
     if (!name || name.length > 100) return fail('Please enter your name.');
     if (!phone) return fail('Please enter a valid Rwandan phone number.');
 
+    const riderPhone = await db
+      .from('riders')
+      .select('id', { count: 'exact', head: true })
+      .eq('phone', phone);
+    if ((riderPhone.count ?? 0) > 0) {
+      return fail('Rider accounts cannot create customer bookings. Sign in to the rider app.');
+    }
+
     // Route, distance and fare come from the signed quote, never from the client.
     const quote = await verifyQuote(String(body.quote ?? ''));
     if (!quote) return fail('Invalid fare estimate. Please calculate the route again.');
@@ -79,6 +87,9 @@ Deno.serve(async (req) => {
           distance_km: quote.km,
           duration_minutes: quote.minutes,
           fare_rwf: quote.fare,
+          fare_policy_version: quote.farePolicyVersion,
+          rider_payout_rwf: quote.riderPayout,
+          ubamoto_commission_rwf: quote.ubamotoCommission,
           status: 'requested',
           reference,
           access_token_hash: accessTokenHash,

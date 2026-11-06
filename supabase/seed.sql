@@ -1,0 +1,2 @@
+-- No seed data. Staff and riders are created in Auth + the admin portal.
+-- Do not insert real user ids or passwords here.

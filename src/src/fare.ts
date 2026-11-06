@@ -2,24 +2,27 @@
 // MUST stay identical in behaviour to src/fare.js in the React app.
 // If you change a number there, change it here and redeploy the function.
 
-export const MIN_FARE_RWF = 500; // any trip under this rounds up
-export const BASE_FARE_RWF = 250; // added once per trip
-
-const TIERS = [
-  { fromKm: 0, toKm: 8, ratePerKm: 160 },
-  { fromKm: 8, toKm: 20, ratePerKm: 140 },
-  { fromKm: 20, toKm: Infinity, ratePerKm: 140 }, // assumption: same rate past 20 km
-];
+export const FARE_POLICY_VERSION = 'ubamoto-fare-2026-11-01';
+export const MIN_FARE_RWF = 500;
+export const BASE_FARE_RWF = 250;
+export const MAX_TRIP_KM = 40;
 
 export function calculateFare(distanceKm: number): number {
-  const km = Math.max(0, Number(distanceKm) || 0);
+  const km = Number(distanceKm);
+  if (!Number.isFinite(km) || km <= 0) throw new Error('Distance must be positive.');
+  if (km > MAX_TRIP_KM) throw new Error('Trips are limited to 40 km.');
+  if (km <= 2) return 589;
+  if (km <= 8) return Math.max(500, Math.ceil(250 + km * 200));
+  if (km <= 20) return Math.max(500, Math.ceil(250 + 8 * 200 + (km - 8) * 140));
+  return Math.max(500, Math.ceil(250 + 8 * 200 + 12 * 140 + (km - 20) * 100));
+}
 
-  let distanceCharge = 0;
-  for (const tier of TIERS) {
-    const kmInTier = Math.max(0, Math.min(km, tier.toKm) - tier.fromKm);
-    distanceCharge += kmInTier * tier.ratePerKm;
-  }
-
-  const subtotal = Math.round(BASE_FARE_RWF + distanceCharge);
-  return Math.max(MIN_FARE_RWF, subtotal);
+export function allocateFare(customerFare: number) {
+  if (!Number.isInteger(customerFare) || customerFare <= 0) throw new Error('Invalid customer fare.');
+  const riderPayout = Math.max(500, Math.round(customerFare * 0.85));
+  return {
+    customerFare,
+    riderPayout,
+    ubamotoCommission: customerFare - riderPayout,
+  };
 }

@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
+    await db.rpc('expire_requested_rides');
 
     const name = String(body.customer_name ?? '').trim();
     const phone = normalizePhone(String(body.customer_phone ?? ''));

@@ -155,6 +155,8 @@ Deno.serve(async (req) => {
         .toUpperCase()
         .slice(0, 20);
       const passportPhotoPath = String(body.passport_photo_path ?? '').trim();
+      const licenceExpiry = String(body.driving_licence_expiry ?? '').trim() || null;
+      const insuranceExpiry = String(body.insurance_expiry ?? '').trim() || null;
 
       if (!name || name.length > 100) {
         return fail('Enter the rider\'s name.');
@@ -193,6 +195,8 @@ Deno.serve(async (req) => {
         phone,
         plate_number: plate || null,
         passport_photo_path: passportPhotoPath || null,
+        driving_licence_expiry: licenceExpiry,
+        insurance_expiry: insuranceExpiry,
         pin_salt: pinSalt,
         pin_hash: pinHash,
         status: 'pending',
@@ -360,6 +364,21 @@ Deno.serve(async (req) => {
       return data
         ? json({ success: true })
         : fail('This ride cannot be cancelled.', 409);
+    }
+
+    if (action === 'set_setting') {
+      if (String(body.key ?? '') !== 'ride_request_expiry_minutes') {
+        return fail('Unknown setting.');
+      }
+      const minutes = Number(body.value);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+        return fail('Request expiry must be between 1 and 1440 minutes.');
+      }
+      const { error } = await db.from('ubamoto_settings')
+        .update({ value: String(minutes), updated_at: new Date().toISOString() })
+        .eq('key', 'ride_request_expiry_minutes');
+      if (error) return fail('Could not update the setting.', 500);
+      return json({ success: true });
     }
 
     return fail('Unknown action.');

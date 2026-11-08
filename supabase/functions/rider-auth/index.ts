@@ -8,7 +8,7 @@ import {
   preflightHeaders,
   verifyRiderPin,
 } from '../_shared/common.ts';
-import { db } from '../_shared/db.ts';
+import { db, checkRateLimit } from '../_shared/db.ts';
 
 Deno.serve(async (req) => {
   const rejectedOrigin = rejectDisallowedOrigin(req);
@@ -18,6 +18,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
+    if (!await checkRateLimit(req, 'rider-login', 10, 900)) {
+      return fail('Too many login attempts. Please try again later.', 429);
+    }
+    await db.rpc('expire_rider_documents');
     const phone = normalizePhone(String(body.phone ?? ''));
     const pin = String(body.pin ?? '').trim();
     if (!phone || !/^\d{4,6}$/.test(pin)) {

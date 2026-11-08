@@ -10,6 +10,7 @@ import {
   preflightHeaders,
   signQuote,
 } from '../_shared/common.ts';
+import { checkRateLimit } from '../_shared/db.ts';
 
 const QUOTE_LIFETIME_MS = 10 * 60 * 1000;
 
@@ -21,6 +22,9 @@ Deno.serve(async (req) => {
 
   try {
     const { pickup, destination } = await req.json();
+    if (!await checkRateLimit(req, 'estimate-route', 30, 60)) {
+      return fail('Too many route estimates. Please try again later.', 429);
+    }
 
     if (!isValidPoint(pickup) || !isValidPoint(destination)) {
       return fail('Pickup and destination must both be inside Rwanda.');

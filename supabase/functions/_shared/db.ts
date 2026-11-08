@@ -27,6 +27,26 @@ export async function getStaff(userId: string) {
   return data;
 }
 
+export async function checkRateLimit(
+  req: Request,
+  scope: string,
+  limit: number,
+  windowSeconds: number,
+  identity?: string,
+) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? req.headers.get('x-real-ip')?.trim()
+    ?? 'unknown';
+  const key = await sha256Hex(`${scope}:${identity ?? ip}`);
+  const { data } = await db.rpc('check_rate_limit', {
+    p_key_hash: key,
+    p_scope: scope,
+    p_limit: limit,
+    p_window_seconds: windowSeconds,
+  });
+  return data === true;
+}
+
 const BOOKING_COLUMNS =
   'id, reference, access_token_hash, status, customer_name, customer_phone, ' +
   'pickup_lat, pickup_lng, destination_name, destination_lat, destination_lng, ' +
@@ -60,7 +80,7 @@ export async function authorizeBooking(cred: any) {
 // What a customer is allowed to see. The rider is shown only while a real
 // assignment exists.
 export async function publicView(b: any) {
-  const showRider = ['assigned', 'in_progress'].includes(b.status) && b.rider;
+  const showRider = ['assigned', 'arrived', 'in_progress'].includes(b.status) && b.rider;
   const locationAgeMs = b.rider_location_updated_at
     ? Date.now() - new Date(b.rider_location_updated_at).getTime()
     : Infinity;

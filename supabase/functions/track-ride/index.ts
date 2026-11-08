@@ -1,5 +1,5 @@
 import { fail, json, rejectDisallowedOrigin, preflightHeaders } from '../_shared/common.ts';
-import { authorizeBooking, publicView } from '../_shared/db.ts';
+import { authorizeBooking, publicView, checkRateLimit } from '../_shared/db.ts';
 
 // Customers ask for the status of up to 10 rides at once. Each one is shown only
 // when the caller proves it is theirs (reference + token, or reference + phone).
@@ -11,6 +11,9 @@ Deno.serve(async (req) => {
 
   try {
     const { rides } = await req.json();
+    if (!await checkRateLimit(req, 'track-ride', 60, 60)) {
+      return fail('Too many tracking requests. Please try again later.', 429);
+    }
     if (!Array.isArray(rides) || rides.length === 0 || rides.length > 10) {
       return fail('Invalid request.');
     }

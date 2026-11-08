@@ -1,5 +1,5 @@
 import { fail, json, rejectDisallowedOrigin, preflightHeaders } from '../_shared/common.ts';
-import { callerId, db, getRider } from '../_shared/db.ts';
+import { callerId, db, getRider, checkRateLimit } from '../_shared/db.ts';
 
 const OPEN_WINDOW_MS = 6 * 60 * 60 * 1000; // ignore requests older than 6 hours
 
@@ -29,8 +29,14 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const action = String(body.action ?? '');
+    if (!await checkRateLimit(req, 'rider-api', 120, 60, userId)) {
+      return fail('Too many requests. Please try again later.', 429);
+    }
+    await db.rpc('expire_rider_documents');
+    await db.rpc('expire_requested_rides');
 
     if (action === 'me') {
+      const { data: documentStatus } = await db.rpc('rider_document_status', { p_rider_id: rider.id });
       return json({
         success: true,
         rider: {
@@ -38,8 +44,24 @@ Deno.serve(async (req) => {
           phone: rider.phone,
           plate_number: rider.plate_number,
           status: rider.status,
+          is_available: rider.is_available === true,
+          documents: documentStatus ?? {},
         },
       });
+    }
+
+    if (action === 'online' || action === 'offline') {
+      const { data, error } = await db
+        .from('riders')
+        .update({
+          is_available: action === 'online',
+        })
+        .eq('id', rider.id)
+        .eq('status', 'verified')
+        .select('id,is_available,status')
+        .maybeSingle();
+      if (error || !data) return fail('Only verified riders with valid documents can go online.', 409);
+      return json({ success: true, is_available: data.is_available });
     }
 
     // Everything below is for verified riders only.
@@ -85,7 +107,7 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         jobs: (data ?? []).map((b: any) => {
-          const live = ['assigned', 'in_progress'].includes(b.status);
+          const live = ['assigned', 'arrived', 'in_progress'].includes(b.status);
           return {
             id: b.id,
             reference: b.reference,
@@ -162,8 +184,13 @@ Deno.serve(async (req) => {
       return data ? json({ success: true }) : fail(message, 409);
     };
 
+    if (action === 'arrived') {
+      return move('assigned', { status: 'arrived', arrived_at: new Date().toISOString() },
+        'This ride is not assigned.');
+    }
+
     if (action === 'start') {
-      return move('assigned', { status: 'in_progress', started_at: new Date().toISOString() },
+      return move('arrived', { status: 'in_progress', started_at: new Date().toISOString() },
         'This ride cannot be started (it may have been cancelled).');
     }
     if (action === 'complete') {
@@ -187,6 +214,30 @@ Deno.serve(async (req) => {
         rider_location_updated_at: null,
       },
         'This ride can no longer be released.');
+    }
+    if (action === 'decline') {
+      const reason = String(body.reason ?? '').trim().slice(0, 500);
+      if (!reason) return fail('A decline reason is required.');
+      return move('assigned', {
+        status: 'requested',
+        rider_id: null,
+        assigned_at: null,
+        cancelled_reason: reason,
+        rider_lat: null,
+        rider_lng: null,
+        rider_location_updated_at: null,
+      }, 'This ride can no longer be declined.');
+    }
+    if (action === 'cancel') {
+      const reason = String(body.reason ?? '').trim().slice(0, 500);
+      if (!reason) return fail('A cancellation reason is required.');
+      const { data, error } = await db.rpc('cancel_ride_booking', {
+        p_booking_id: id,
+        p_cancelled_by: 'rider',
+        p_reason: reason,
+      });
+      if (error || data !== true) return fail('This ride cannot be cancelled.', 409);
+      return json({ success: true, status: 'cancelled' });
     }
 
     return fail('Unknown action.');

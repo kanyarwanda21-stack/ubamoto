@@ -1,4 +1,5 @@
 import { corsHeaders, isInRwanda, rejectDisallowedOrigin, preflightHeaders } from "../_shared/common.ts";
+import { checkRateLimit } from "../_shared/db.ts";
 
 const PHOTON_URL = "https://photon.komoot.io/api/";
 const MAPBOX_URL = "https://api.mapbox.com/search/searchbox/v1";
@@ -6,8 +7,6 @@ const MAPBOX_URL = "https://api.mapbox.com/search/searchbox/v1";
 const REQUEST_TIMEOUT_MS = 8000;
 const MAX_QUERY_LENGTH = 100;
 const MAX_RESULTS = 6;
-const MAX_REQUESTS_PER_MINUTE = 30;
-
 // Rwanda search boundary: west, south, east, north.
 const RWANDA_BBOX = "28.8,-2.9,30.95,-1.0";
 
@@ -34,8 +33,6 @@ type Coordinate = {
   lng: number;
 };
 
-const rateWindows = new Map<string, { start: number; count: number }>();
-
 function jsonResponse(
   body: Record<string, unknown>,
   status = 200,
@@ -60,30 +57,6 @@ function isValidCoordinate(lat: unknown, lng: unknown): boolean {
   );
 }
 
-function getClientKey(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  const realIp = req.headers.get("x-real-ip");
-
-  // Best-effort key for per-instance rate limiting.
-  return (
-    forwarded?.split(",")[0]?.trim() ||
-    realIp ||
-    "unknown-client"
-  );
-}
-
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const existing = rateWindows.get(key);
-
-  if (!existing || now - existing.start >= 60_000) {
-    rateWindows.set(key, { start: now, count: 1 });
-    return false;
-  }
-
-  existing.count += 1;
-  return existing.count > MAX_REQUESTS_PER_MINUTE;
-}
 
 async function fetchJson(
   url: string,
@@ -559,9 +532,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  const clientKey = getClientKey(req);
-
-  if (isRateLimited(clientKey)) {
+  if (!await checkRateLimit(req, "search-places", 30, 60)) {
     return jsonResponse(
       {
         success: false,

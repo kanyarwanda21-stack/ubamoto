@@ -1,5 +1,5 @@
 import { fail, json, rejectDisallowedOrigin, preflightHeaders } from '../_shared/common.ts';
-import { authorizeBooking, db } from '../_shared/db.ts';
+import { authorizeBooking, db, checkRateLimit } from '../_shared/db.ts';
 
 const CANCEL_HELP = 'This ride can no longer be cancelled here. Please contact support.';
 
@@ -11,6 +11,9 @@ Deno.serve(async (req) => {
 
   try {
     const payload = await req.json();
+    if (!await checkRateLimit(req, 'cancel-ride', 10, 600, String(payload.reference ?? payload.phone ?? ''))) {
+      return fail('Too many cancellation attempts. Please try again later.', 429);
+    }
     const booking = await authorizeBooking(payload);
     if (!booking) return fail('We could not find that ride.', 404);
 

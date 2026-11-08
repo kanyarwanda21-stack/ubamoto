@@ -6,7 +6,7 @@ import {
   rejectDisallowedOrigin,
   preflightHeaders,
 } from '../_shared/common.ts';
-import { db } from '../_shared/db.ts';
+import { db, checkRateLimit } from '../_shared/db.ts';
 
 Deno.serve(async (req) => {
   const rejectedOrigin = rejectDisallowedOrigin(req);
@@ -15,6 +15,9 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {
+    if (!await checkRateLimit(req, 'rider-apply', 5, 3600)) {
+      return fail('Too many applications have been submitted. Please try again later.', 429);
+    }
     const contentType = req.headers.get('content-type') ?? '';
     if (!contentType.includes('multipart/form-data')) return fail('Invalid form submission.', 400);
     const form = await req.formData();

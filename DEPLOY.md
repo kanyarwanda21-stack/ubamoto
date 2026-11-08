@@ -9,24 +9,23 @@ VITE_MAPBOX_TOKEN=pk....   # public token, restrict it to your domain in the Map
 
 ## Edge Function secrets
 ```
-supabase secrets set MAPBOX_TOKEN=pk....        # used by search-places and estimate-route
+supabase secrets set MAPBOX_TOKEN=pk....        # used by search-places
 supabase secrets set QUOTE_SECRET=$(openssl rand -hex 32)
 supabase secrets set ALLOWED_ORIGIN=https://your-domain.rw
 ```
 
 ## Database
 
-Schema lives in git: `supabase/migrations/20261102100000_ride_platform.sql`.
-It creates (or adds missing pieces to) `ride_bookings`, `riders` and `staff`,
-with unique booking references, foreign keys, status checks, indexes, and RLS
-that denies all `anon` / `authenticated` access. Only Edge Functions (service
-role) can read or write these tables.
+Schema changes live in `supabase/migrations/`. The migrations create and harden
+`ride_bookings`, `riders`, `rider_applications`, `staff`, and related operational
+tables, with status checks, indexes, constraints, and RLS. Only authorized Edge
+Functions using the service role should read or write protected tables.
 
 ### Before you apply this to a live project
 
 1. In Supabase Studio → Table Editor (or `npx supabase db dump --schema public`),
    check whether `ride_bookings` already exists and what type `id` is.
-2. This migration uses **uuid** ids (Auth user ids are uuid). It will **not**
+2. The current migration set uses **uuid** ids (Auth user ids are uuid). It will **not**
    change an existing `bigint` id. If types differ, stop and reconcile first.
 3. Take a backup (Studio → Database → Backups, or a dump).
 
@@ -37,8 +36,7 @@ role) can read or write these tables.
 npx supabase db push
 ```
 
-**Or** Studio → SQL Editor → paste the contents of
-`supabase/migrations/20261102100000_ride_platform.sql` → Run.
+**Or** Studio → SQL Editor → apply each required migration in filename order → Run.
 
 Local reset (destroys local DB only, not production):
 ```
@@ -61,7 +59,6 @@ JWT checks are set in `supabase/config.toml`. Customer functions are public
 
 ```
 npx supabase functions deploy search-places
-npx supabase functions deploy estimate-route
 npx supabase functions deploy create-ride-booking
 npx supabase functions deploy track-ride
 npx supabase functions deploy cancel-ride-booking
@@ -113,9 +110,9 @@ quotes, phones, and ride tokens themselves.
 
 ## Using the portals
 
-- Admin: open `https://your-site/#/admin`, sign in, then Riders > "Add a rider", then press **Verify**.
-- Rider: opens `https://your-site/#/rider` on their phone, signs in with the email and temporary
-  password you gave. They see new requests (pickup area only), accept one, and then see the
+- Admin: open the deployed admin portal, sign in, then Riders > "Add a rider", then press **Verify**.
+- Rider: opens the deployed rider portal on their phone and signs in with the account created
+  and verified by an administrator. They see new requests (pickup area only), accept one, and then see the
   customer's name and phone to call. Add the page to the home screen like any other app.
 - Customer: My Rides shows the status. Once a rider accepts, **Call rider** and the rider's
   name and plate appear. **Cancel request** works until the ride has started.

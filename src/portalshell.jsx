@@ -3,8 +3,8 @@ import './portal.css';
 import { signIn, signOut, useSession } from './lib/auth';
 
 function LoginForm({ title }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -12,8 +12,8 @@ function LoginForm({ title }) {
     event.preventDefault();
     setBusy(true);
     setError('');
-    const { error: signInError } = await signIn(email, password);
-    if (signInError) setError('Wrong email or password.');
+    const { error: signInError } = await signIn(phone, pin);
+    if (signInError) setError(signInError.message || 'Wrong phone number or PIN.');
     setBusy(false);
   }
 
@@ -23,22 +23,26 @@ function LoginForm({ title }) {
       <p className="portal-note">Sign in with the account UBAmoto gave you.</p>
 
       <label>
-        Email
+        Phone number
         <input
-          type="email"
-          autoComplete="username"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
           required
         />
       </label>
       <label>
-        Password
+        PIN
         <input
           type="password"
+          inputMode="numeric"
+          pattern="[0-9]{4,6}"
+          maxLength={6}
           autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          value={pin}
+          onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
           required
         />
       </label>
@@ -47,7 +51,6 @@ function LoginForm({ title }) {
       <button className="portal-btn" type="submit" disabled={busy}>
         {busy ? 'Signing in...' : 'Sign in'}
       </button>
-      <a className="portal-link" href="#/">Back to the customer app</a>
     </form>
   );
 }
@@ -73,7 +76,6 @@ export default function PortalShell({ title, children }) {
       <div className="portal-head">
         <div>
           <h1>{title}</h1>
-          <p className="portal-note">{session.user.email}</p>
         </div>
         <button type="button" className="portal-btn portal-btn-light" onClick={signOut}>
           Sign out

@@ -45,7 +45,20 @@ export const estimateRoute = (pickup, destination) =>
   call('estimate-route', { pickup, destination });
 
 export const createBooking = (payload) => call('create-ride-booking', payload);
-export const submitRiderApplication = (payload) => call('rider-apply', payload);
+export const submitRiderApplication = async (payload) => {
+  const form = new FormData();
+  form.set('name', payload.name);
+  form.set('phone', payload.phone);
+  form.set('plate_number', payload.plate_number);
+  form.set('licence_number', payload.licence_number);
+  form.set('consent', String(payload.consent));
+  if (payload.passport_photo) form.set('passport_photo', payload.passport_photo);
+
+  const { data, error } = await supabase.functions.invoke('rider-apply', { body: form });
+  if (error) throw new Error(data?.error || 'Connection problem. Please try again.');
+  if (!data?.success) throw new Error(data?.error || 'Something went wrong.');
+  return data;
+};
 
 // ---------- Ride tracking and cancelling (customers, no account) ----------
 // Each ride is proven with { reference, token } (this device) or { reference, phone }.

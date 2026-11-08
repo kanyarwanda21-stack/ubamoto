@@ -57,6 +57,38 @@ function RiderApp() {
     return () => clearInterval(timer);
   }, [me, load]);
 
+  const liveJobCount = jobs.filter((job) => ['assigned', 'in_progress'].includes(job.status)).length;
+
+  useEffect(() => {
+    if (!navigator.geolocation || liveJobCount === 0) return undefined;
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        if (accuracy > 1000) return;
+        await Promise.all(
+          jobs
+            .filter((job) => ['assigned', 'in_progress'].includes(job.status))
+            .map((job) => riderApi('update_location', {
+              id: job.id,
+              lat: latitude,
+              lng: longitude,
+            }).catch(() => null))
+        );
+      },
+      (error) => {
+        setMessage(
+          error.code === 1
+            ? 'Location permission is required while sharing your position.'
+            : 'Current location is unavailable. Check GPS and network access.'
+        );
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [liveJobCount, jobs.map((job) => `${job.id}:${job.status}`).join('|')]);
+
   async function act(action, id) {
     setBusyId(id);
     setMessage('');
@@ -144,6 +176,12 @@ function RiderApp() {
                 <span className={`portal-pill portal-${job.status}`}>{STATUS_TEXT[job.status]}</span>
               </div>
               <p className="portal-note">To: {job.destination_name}</p>
+              {job.destination_address && (
+                <p className="portal-note">
+                  {job.destination_type ? `${job.destination_type}: ` : ''}
+                  {job.destination_address}
+                </p>
+              )}
               <p className="portal-note">
                 {formatRwf(job.fare_rwf)} · {Number(job.distance_km).toFixed(1)} km · Ref {job.reference}
               </p>
@@ -162,7 +200,7 @@ function RiderApp() {
                 {job.status === 'assigned' && (
                   <>
                     <button type="button" className="portal-btn" disabled={busyId === job.id} onClick={() => act('start', job.id)}>
-                      Start ride
+                      Confirm pickup & start
                     </button>
                     <button type="button" className="portal-btn portal-btn-danger" disabled={busyId === job.id} onClick={() => act('release', job.id)}>
                       Give back

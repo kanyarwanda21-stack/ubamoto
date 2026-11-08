@@ -14,7 +14,18 @@ export function useSession() {
   return session;
 }
 
-export const signIn = (email, password) =>
-  supabase.auth.signInWithPassword({ email: email.trim(), password });
+export async function signIn(phone, pin) {
+  const { data, error } = await supabase.functions.invoke('rider-auth', {
+    body: { phone, pin },
+  });
+  if (error) return { error };
+  if (!data?.success || !data.token_hash) {
+    return { error: new Error(data?.error || 'Wrong phone number or PIN.') };
+  }
+  return supabase.auth.verifyOtp({
+    token_hash: data.token_hash,
+    type: 'magiclink',
+  });
+}
 
 export const signOut = () => supabase.auth.signOut();

@@ -125,6 +125,7 @@ function makePin(kind) {
 
 const pickupIcon = makePin('pickup');
 const destinationIcon = makePin('destination');
+const riderIcon = makePin('rider');
 
 // Hash routing (#/book, #/rides, ...) so the browser back button and
 // refresh work without adding a router dependency.
@@ -227,6 +228,8 @@ function App() {
   const [searching, setSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState('');
   const [selectedDestinationName, setSelectedDestinationName] = useState('');
+  const [selectedDestinationAddress, setSelectedDestinationAddress] = useState('');
+  const [selectedDestinationType, setSelectedDestinationType] = useState('');
 
   // quote = { distance_km, duration_minutes, fare_rwf, expires_at, quote, geometry }
   // It comes from the server, which is the only place fares are calculated.
@@ -266,6 +269,10 @@ function App() {
   const [submittingBooking, setSubmittingBooking] = useState(false);
 
   const routeCoordinates = quote ? quote.geometry : NO_ROUTE;
+  const liveRiderRide = rides.find(
+    (ride) => ['assigned', 'in_progress'].includes(ride.status) && Array.isArray(ride.riderLocation)
+  );
+  const liveRiderLocation = liveRiderRide?.riderLocation ?? null;
 
   const fareBreakdown = useMemo(
     () =>
@@ -428,7 +435,7 @@ function App() {
   }
 
   // Returns true when the destination was accepted.
-  function selectDestination(position, name, focus = false) {
+  function selectDestination(position, name, focus = false, address = '', type = '') {
     if (!isInRwanda(position)) {
       setSearchMessage('UBAmoto serves Rwanda only. Choose a destination inside Rwanda.');
       return false;
@@ -439,6 +446,8 @@ function App() {
     setActiveMapTarget('destination');
     setDestination(name || '');
     setSelectedDestinationName(name || '');
+    setSelectedDestinationAddress(address);
+    setSelectedDestinationType(type);
     setDestinationResults([]);
     setSearchMessage('');
     clearRoute();
@@ -453,7 +462,13 @@ function App() {
     try {
       const { place: found } = await retrievePlace(place.id, sessionRef.current);
       sessionRef.current = newSessionId();
-      selectDestination([found.lat, found.lng], found.name || place.name, true);
+      selectDestination(
+        [found.lat, found.lng],
+        found.name || place.name,
+        true,
+        found.address || place.address || place.details || '',
+        found.type || place.type || ''
+      );
     } catch (error) {
       setSearchMessage(error.message);
     } finally {
@@ -613,6 +628,8 @@ function App() {
         customer_name: name,
         customer_phone: phone,
         destination_name: destinationLabel,
+        destination_address: selectedDestinationAddress,
+        destination_type: selectedDestinationType,
         quote: quote.quote,
         accepted_terms: true,
       });
@@ -630,6 +647,8 @@ function App() {
         durationMinutes: quote.duration_minutes,
         pickup: pickupPosition,
         destination: destinationPosition,
+        destinationAddress: selectedDestinationAddress || null,
+        destinationType: selectedDestinationType || null,
         status: 'requested',
       };
       const nextRides = [ride, ...rides].slice(0, 50);
@@ -707,10 +726,21 @@ function App() {
         const fresh = byReference.get(ride.reference);
         if (!fresh) return ride;
         const sameRider = JSON.stringify(fresh.rider) === JSON.stringify(ride.rider ?? null);
-        if (fresh.status === ride.status && sameRider) return ride;
+        const sameLocation = JSON.stringify(fresh.rider_location ?? null) === JSON.stringify(ride.riderLocation ?? null);
+        if (fresh.status === ride.status && sameRider && sameLocation &&
+            fresh.destination_address === ride.destinationAddress &&
+            fresh.destination_type === ride.destinationType) return ride;
         changed = true;
         announceChange(ride, fresh);
-        return { ...ride, status: fresh.status, rider: fresh.rider };
+        return {
+          ...ride,
+          status: fresh.status,
+          rider: fresh.rider,
+          riderLocation: fresh.rider_location ?? null,
+          riderLocationUpdatedAt: fresh.rider_location_updated_at ?? null,
+          destinationAddress: fresh.destination_address ?? ride.destinationAddress ?? null,
+          destinationType: fresh.destination_type ?? ride.destinationType ?? null,
+        };
       });
 
       if (changed) {
@@ -899,6 +929,14 @@ function App() {
           </Tooltip>
         </Marker>
       )}
+
+      {liveRiderLocation && (
+        <Marker position={liveRiderLocation} icon={riderIcon}>
+          <Tooltip permanent direction="top" offset={[0, -30]}>
+            Rider live location
+          </Tooltip>
+        </Marker>
+      )}
     </>
   );
 
@@ -907,12 +945,12 @@ function App() {
     return (
       <div className="app-shell screen-mode">
         <header className="site-header">
-          <a className="brand" href="#/" aria-label="UBAmoto customer app">
+          <div className="brand" aria-label="UBAmoto rider app">
             <img className="brand-mark-image" src="/ubamoto-pin.svg" alt="" />
             <span>
               UBA<span className="brand-accent">moto</span>
             </span>
-          </a>
+          </div>
         </header>
         <main>
           <Suspense fallback={<p className="portal-note" style={{ padding: 24 }}>Loading...</p>}>
@@ -1363,6 +1401,8 @@ function App() {
                         onChange={(event) => {
                           setDestination(event.target.value);
                           setSelectedDestinationName('');
+                          setSelectedDestinationAddress('');
+                          setSelectedDestinationType('');
                           setDestinationPosition(null);
                           clearRoute();
                           setSearchMessage('');
@@ -1383,6 +1423,7 @@ function App() {
                           >
                             <strong>{place.name}</strong>
                             <span>{place.details || 'Rwanda'}</span>
+                            {place.type && <small>{place.type}</small>}
                           </button>
                         ))}
                       </div>
@@ -1398,6 +1439,12 @@ function App() {
                       <p className="field-hint selected-destination">
                         <CheckCircle2 size={15} />
                         Selected: {destinationLabel}
+                      </p>
+                    )}
+                    {destinationPosition && selectedDestinationAddress && (
+                      <p className="field-hint">
+                        {selectedDestinationType ? `${selectedDestinationType}: ` : ''}
+                        {selectedDestinationAddress}
                       </p>
                     )}
                   </div>

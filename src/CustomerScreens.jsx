@@ -313,6 +313,13 @@ function RidesScreen({ rides, onNavigate, onRebook, onClearRides, onCancelRide, 
 
                 {ride.rider && ['assigned', 'in_progress'].includes(status) && (
                   <div className="uba-rider-box">
+                    {ride.rider.passport_photo_url && (
+                      <img
+                        className="uba-rider-passport"
+                        src={ride.rider.passport_photo_url}
+                        alt={`${ride.rider.name}'s passport photo`}
+                      />
+                    )}
                     <div>
                       <span>Your rider</span>
                       <strong>{ride.rider.name}</strong>
@@ -620,6 +627,7 @@ function RiderApplicationScreen() {
     phone: '',
     plate_number: '',
     licence_number: '',
+    passport_photo: null,
     consent: false,
   });
   const [busy, setBusy] = useState(false);
@@ -665,6 +673,14 @@ function RiderApplicationScreen() {
         <label>Phone<input required type="tel" maxLength={20} value={form.phone} onChange={(e) => update('phone', e.target.value)} /></label>
         <label>Motorcycle plate<input required maxLength={20} value={form.plate_number} onChange={(e) => update('plate_number', e.target.value)} /></label>
         <label>Licence number<input required maxLength={50} value={form.licence_number} onChange={(e) => update('licence_number', e.target.value)} /></label>
+        <label>Passport photo
+          <input
+            required
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => update('passport_photo', event.target.files?.[0] ?? null)}
+          />
+        </label>
         <label className="rider-consent">
           <input required type="checkbox" checked={form.consent} onChange={(e) => update('consent', e.target.checked)} />
           <span>I consent to UBAmoto processing these details for rider onboarding.</span>

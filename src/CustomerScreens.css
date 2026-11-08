@@ -949,6 +949,15 @@
   font-size: 12px;
 }
 
+.uba-rider-passport {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
 .uba-refresh-row {
   margin: 0 0 12px;
 }

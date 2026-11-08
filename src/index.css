@@ -928,6 +928,10 @@ a {
   background: #e59a35;
 }
 
+.uba-map-pin.rider {
+  background: #2473d4;
+}
+
 .booking-mode main {
   min-height: calc(100vh - var(--header-height));
 }

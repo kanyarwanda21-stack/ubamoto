@@ -8,6 +8,7 @@ import {
   randomToken,
   hashRiderPin,
   riderSyntheticEmail,
+  rejectDisallowedOrigin,
 } from '../_shared/common.ts';
 
 import {
@@ -25,15 +26,20 @@ const BOOKING_COLUMNS =
 const STATUSES = [
   'requested',
   'assigned',
+  'arrived',
   'in_progress',
   'completed',
   'cancelled',
+  'expired',
 ];
 
 Deno.serve(async (req) => {
+  const rejectedOrigin = rejectDisallowedOrigin(req);
+  if (rejectedOrigin) return rejectedOrigin;
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+  if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {
     // Authenticate the account.
@@ -340,20 +346,11 @@ Deno.serve(async (req) => {
         return fail('Missing booking information.');
       }
 
-      const { data, error } = await db
-        .from('ride_bookings')
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancelled_by: 'staff',
-          rider_lat: null,
-          rider_lng: null,
-          rider_location_updated_at: null,
-        })
-        .eq('id', bookingId)
-        .in('status', ['requested', 'assigned', 'in_progress'])
-        .select('id')
-        .maybeSingle();
+      const { data, error } = await db.rpc('cancel_ride_booking', {
+        p_booking_id: bookingId,
+        p_cancelled_by: 'staff',
+        p_reason: typeof body.reason === 'string' ? String(body.reason).slice(0, 500) : null,
+      });
 
       if (error) {
         console.error('Booking cancellation failed:', error);

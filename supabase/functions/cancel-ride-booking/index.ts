@@ -1,35 +1,31 @@
-import { corsHeaders, fail, json } from '../_shared/common.ts';
+import { corsHeaders, fail, json, rejectDisallowedOrigin } from '../_shared/common.ts';
 import { authorizeBooking, db } from '../_shared/db.ts';
 
 const CANCEL_HELP = 'This ride can no longer be cancelled here. Please contact support.';
 
 Deno.serve(async (req) => {
+  const rejectedOrigin = rejectDisallowedOrigin(req);
+  if (rejectedOrigin) return rejectedOrigin;
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {
-    const booking = await authorizeBooking(await req.json());
+    const payload = await req.json();
+    const booking = await authorizeBooking(payload);
     if (!booking) return fail('We could not find that ride.', 404);
 
     if (booking.status === 'cancelled') return fail('This ride is already cancelled.', 409);
     if (!['requested', 'assigned'].includes(booking.status)) return fail(CANCEL_HELP, 409);
 
-    // The status check is part of the update, so a ride that just started cannot be cancelled.
-    const { data, error } = await db
-      .from('ride_bookings')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        cancelled_by: 'customer',
-        rider_lat: null,
-        rider_lng: null,
-        rider_location_updated_at: null,
-      })
-      .eq('reference', booking.reference)
-      .in('status', ['requested', 'assigned'])
-      .select('status')
-      .maybeSingle();
+    const { data, error } = await db.rpc('cancel_ride_booking', {
+      p_booking_id: booking.id,
+      p_cancelled_by: 'customer',
+      p_reason: typeof payload.reason === 'string'
+        ? String(payload.reason).slice(0, 500)
+        : null,
+    });
 
-    if (error || !data) return fail(CANCEL_HELP, 409);
+    if (error || data !== true) return fail(CANCEL_HELP, 409);
     return json({ success: true, status: 'cancelled' });
   } catch {
     return fail('Invalid request.');

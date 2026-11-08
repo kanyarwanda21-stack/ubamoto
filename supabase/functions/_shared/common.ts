@@ -2,11 +2,29 @@
 // The fare rules here are authoritative. Keep them in sync with src/fare.js.
 
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': globalThis.Deno?.env?.get('ALLOWED_ORIGIN') ?? '*',
+  'Access-Control-Allow-Origin': (
+    globalThis.Deno?.env?.get('ALLOWED_ORIGIN')?.split(',')[0]?.trim() ?? ''
+  ),
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+export function corsHeadersForRequest(req: Request) {
+  const origin = req.headers.get('origin')?.trim() ?? '';
+  const allowed = (globalThis.Deno?.env?.get('ALLOWED_ORIGIN') ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!origin || !allowed.includes(origin)) {
+    return null;
+  }
+  return { ...corsHeaders, 'Access-Control-Allow-Origin': origin };
+}
+
+export function rejectDisallowedOrigin(req: Request) {
+  return corsHeadersForRequest(req) ? null : json({ success: false, error: 'Origin not allowed.' }, 403);
+}
 
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -180,7 +198,27 @@ export function riderSyntheticEmail(phone: string) {
 }
 
 export async function hashRiderPin(phone: string, pin: string, salt: string) {
-  return sha256Hex(`ubamoto-rider-pin:${phone}:${salt}:${pin}`);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(`${phone}:${pin}`),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: encoder.encode(salt), iterations: 310000, hash: 'SHA-256' },
+    key,
+    256,
+  );
+  return `$pbkdf2$310000$${salt}$${new Uint8Array(bits)
+    .reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '')}`;
+}
+
+export async function verifyRiderPin(phone: string, pin: string, salt: string, stored: string) {
+  if (stored.startsWith('$pbkdf2$310000$')) {
+    return safeEqual(await hashRiderPin(phone, pin, salt), stored);
+  }
+  return safeEqual(await sha256Hex(`ubamoto-rider-pin:${phone}:${salt}:${pin}`), stored);
 }
 
 export function safeEqual(a: string, b: string) {

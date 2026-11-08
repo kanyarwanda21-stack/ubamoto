@@ -1,10 +1,13 @@
-import { corsHeaders, fail, json } from '../_shared/common.ts';
+import { corsHeaders, fail, json, rejectDisallowedOrigin } from '../_shared/common.ts';
 import { authorizeBooking, publicView } from '../_shared/db.ts';
 
 // Customers ask for the status of up to 10 rides at once. Each one is shown only
 // when the caller proves it is theirs (reference + token, or reference + phone).
 Deno.serve(async (req) => {
+  const rejectedOrigin = rejectDisallowedOrigin(req);
+  if (rejectedOrigin) return rejectedOrigin;
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {
     const { rides } = await req.json();

@@ -1,4 +1,4 @@
-import { corsHeaders, isInRwanda } from "../_shared/common.ts";
+import { corsHeaders, isInRwanda, rejectDisallowedOrigin } from "../_shared/common.ts";
 
 const PHOTON_URL = "https://photon.komoot.io/api/";
 const MAPBOX_URL = "https://api.mapbox.com/search/searchbox/v1";
@@ -546,6 +546,8 @@ async function retrieveMapbox(
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  const rejectedOrigin = rejectDisallowedOrigin(req);
+  if (rejectedOrigin) return rejectedOrigin;
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

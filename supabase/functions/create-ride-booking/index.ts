@@ -1,5 +1,6 @@
 import {
   corsHeaders,
+  rejectDisallowedOrigin,
   fail,
   json,
   newReference,
@@ -14,7 +15,10 @@ const MAX_REQUESTS_PER_PHONE = 3; // per 10 minutes
 const MAX_ACTIVE_PER_PHONE = 2; // open rides at the same time
 
 Deno.serve(async (req) => {
+  const rejectedOrigin = rejectDisallowedOrigin(req);
+  if (rejectedOrigin) return rejectedOrigin;
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {
     const body = await req.json();
@@ -64,7 +68,7 @@ Deno.serve(async (req) => {
       .from('ride_bookings')
       .select('id', { count: 'exact', head: true })
       .eq('customer_phone', phone)
-      .in('status', ['requested', 'assigned', 'in_progress']);
+      .in('status', ['requested', 'assigned', 'arrived', 'in_progress']);
     if ((active.count ?? 0) >= MAX_ACTIVE_PER_PHONE) {
       return fail(
         'You already have open ride requests. Cancel one in My Rides or wait for it to finish.',

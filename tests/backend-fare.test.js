@@ -14,6 +14,16 @@ const cases = [
   [15, 2830], [20, 3530], [25, 4030], [30, 4530], [40, 5530],
 ];
 
+test('backend fare boundary values are exact', () => {
+  assert.equal(fareForKm(1.999), 589);
+  assert.equal(fareForKm(2.001), 651);
+  assert.equal(fareForKm(7.999), 1850);
+  assert.equal(fareForKm(8.001), 1851);
+  assert.equal(fareForKm(19.999), 3530);
+  assert.equal(fareForKm(20.001), 3531);
+  assert.equal(fareForKm(39.999), 5530);
+});
+
 test('backend fare policy has the expected version and limit', () => {
   assert.equal(FARE_POLICY_VERSION, 'ubamoto-fare-2026-11-01');
   assert.equal(MAX_TRIP_KM, 40);

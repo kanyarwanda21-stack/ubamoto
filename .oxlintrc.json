@@ -1,8 +1,51 @@
+
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "UBAmoto-backups/**",
+    "database/batch-*/**",
+    "dist/**",
+    "node_modules/**"
+  ],
   "plugins": ["react", "oxc"],
   "rules": {
+    "no-undef": "error",
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.{js,jsx,ts,tsx}"],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": ["public/sw.js"],
+      "env": {
+        "serviceworker": true
+      }
+    },
+    {
+      "files": ["supabase/functions/**/*.{js,jsx,ts,tsx}"],
+      "env": {
+        "serviceworker": true
+      },
+      "globals": {
+        "Deno": "readonly"
+      }
+    },
+    {
+      "files": ["tests/**/*.js", "*.config.js", "*.config.ts"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["*.mjs"],
+      "env": {
+        "node": true
+      }
+    }
+  ]
 }

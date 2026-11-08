@@ -1,4 +1,4 @@
-import { corsHeaders, fail, json, rejectDisallowedOrigin } from '../_shared/common.ts';
+import { fail, json, rejectDisallowedOrigin, preflightHeaders } from '../_shared/common.ts';
 import { authorizeBooking, publicView } from '../_shared/db.ts';
 
 // Customers ask for the status of up to 10 rides at once. Each one is shown only
@@ -6,7 +6,7 @@ import { authorizeBooking, publicView } from '../_shared/db.ts';
 Deno.serve(async (req) => {
   const rejectedOrigin = rejectDisallowedOrigin(req);
   if (rejectedOrigin) return rejectedOrigin;
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {

@@ -11,8 +11,29 @@ VITE_MAPBOX_TOKEN=pk....   # public token, restrict it to your domain in the Map
 ```
 supabase secrets set MAPBOX_TOKEN=pk....        # used by search-places
 supabase secrets set QUOTE_SECRET=$(openssl rand -hex 32)
-supabase secrets set ALLOWED_ORIGIN=https://your-domain.rw
 ```
+
+Set `ALLOWED_ORIGIN` separately for each linked project; never combine staging and
+production origins into a wildcard or share guesses across environments:
+
+```
+# Replace with the exact production frontend origin.
+npx supabase secrets set ALLOWED_ORIGIN=https://EXACT-PRODUCTION-ORIGIN --project-ref wabknnjudqqaconrywcj
+
+# Replace with the exact staging frontend origin.
+npx supabase secrets set ALLOWED_ORIGIN=https://EXACT-STAGING-ORIGIN --project-ref edzeogujobuyhemcnyaj
+```
+
+These frontend origins are outstanding configuration requirements until the actual
+deployed production and staging URLs are confirmed. Do not configure wildcard
+origins or the placeholder origins above. Unknown origins must fail closed.
+
+## Cancellation fees
+
+RWF 300 and RWF 500 fees are not active. Their cancellation conditions have not
+been approved, and no automatic charge or fee rule is implemented. Existing
+customer cancellation behavior remains unchanged until explicit business rules
+are supplied.
 
 ## Database
 

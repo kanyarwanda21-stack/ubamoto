@@ -26,6 +26,10 @@ export function rejectDisallowedOrigin(req: Request) {
   return corsHeadersForRequest(req) ? null : json({ success: false, error: 'Origin not allowed.' }, 403);
 }
 
+export function preflightHeaders(req: Request) {
+  return corsHeadersForRequest(req) ?? {};
+}
+
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

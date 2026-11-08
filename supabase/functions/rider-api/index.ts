@@ -1,4 +1,4 @@
-import { corsHeaders, fail, json, rejectDisallowedOrigin } from '../_shared/common.ts';
+import { fail, json, rejectDisallowedOrigin, preflightHeaders } from '../_shared/common.ts';
 import { callerId, db, getRider } from '../_shared/db.ts';
 
 const OPEN_WINDOW_MS = 6 * 60 * 60 * 1000; // ignore requests older than 6 hours
@@ -17,7 +17,7 @@ const JOB_COLUMNS =
 Deno.serve(async (req) => {
   const rejectedOrigin = rejectDisallowedOrigin(req);
   if (rejectedOrigin) return rejectedOrigin;
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {

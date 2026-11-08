@@ -1,4 +1,4 @@
-import { corsHeaders, fail, json, rejectDisallowedOrigin } from '../_shared/common.ts';
+import { fail, json, rejectDisallowedOrigin, preflightHeaders } from '../_shared/common.ts';
 import { authorizeBooking, db } from '../_shared/db.ts';
 
 const CANCEL_HELP = 'This ride can no longer be cancelled here. Please contact support.';
@@ -6,7 +6,7 @@ const CANCEL_HELP = 'This ride can no longer be cancelled here. Please contact s
 Deno.serve(async (req) => {
   const rejectedOrigin = rejectDisallowedOrigin(req);
   if (rejectedOrigin) return rejectedOrigin;
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {

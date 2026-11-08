@@ -1,6 +1,6 @@
 import {
-  corsHeaders,
   rejectDisallowedOrigin,
+  preflightHeaders,
   fail,
   json,
   newReference,
@@ -17,7 +17,7 @@ const MAX_ACTIVE_PER_PHONE = 2; // open rides at the same time
 Deno.serve(async (req) => {
   const rejectedOrigin = rejectDisallowedOrigin(req);
   if (rejectedOrigin) return rejectedOrigin;
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {

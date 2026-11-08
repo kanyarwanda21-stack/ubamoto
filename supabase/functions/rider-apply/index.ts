@@ -1,14 +1,17 @@
 import {
-  corsHeaders,
   fail,
   json,
   normalizePhone,
   sha256Hex,
+  rejectDisallowedOrigin,
+  preflightHeaders,
 } from '../_shared/common.ts';
 import { db } from '../_shared/db.ts';
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const rejectedOrigin = rejectDisallowedOrigin(req);
+  if (rejectedOrigin) return rejectedOrigin;
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {

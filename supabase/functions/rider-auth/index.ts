@@ -1,11 +1,11 @@
 import {
-  corsHeaders,
   fail,
   hashRiderPin,
   json,
   normalizePhone,
   riderSyntheticEmail,
   rejectDisallowedOrigin,
+  preflightHeaders,
   verifyRiderPin,
 } from '../_shared/common.ts';
 import { db } from '../_shared/db.ts';
@@ -13,7 +13,7 @@ import { db } from '../_shared/db.ts';
 Deno.serve(async (req) => {
   const rejectedOrigin = rejectDisallowedOrigin(req);
   if (rejectedOrigin) return rejectedOrigin;
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return fail('Method not allowed.', 405);
 
   try {

@@ -23,6 +23,10 @@ Deno.serve(async (req) => {
     const phone = normalizePhone(String(body.customer_phone ?? ''));
     const destinationName =
       String(body.destination_name ?? '').trim().slice(0, 200) || 'Pinned location';
+    const destinationAddress =
+      String(body.destination_address ?? '').trim().slice(0, 500) || null;
+    const destinationType =
+      String(body.destination_type ?? '').trim().slice(0, 50) || null;
 
     if (body.accepted_terms !== true) {
       return fail('Please accept the Terms of Service and Privacy Policy to continue.');
@@ -82,6 +86,8 @@ Deno.serve(async (req) => {
           pickup_lat: quote.pickup[0],
           pickup_lng: quote.pickup[1],
           destination_name: destinationName,
+          destination_address: destinationAddress,
+          destination_type: destinationType,
           destination_lat: quote.destination[0],
           destination_lng: quote.destination[1],
           distance_km: quote.km,

@@ -1,7 +1,6 @@
 import { corsHeaders, fail, json } from '../_shared/common.ts';
 import { callerId, db, getRider } from '../_shared/db.ts';
 
-const MAX_ACTIVE_JOBS = 2;
 const OPEN_WINDOW_MS = 6 * 60 * 60 * 1000; // ignore requests older than 6 hours
 
 const round3 = (n: number) => Math.round(Number(n) * 1000) / 1000; // about 100 m
@@ -11,6 +10,7 @@ const OPEN_COLUMNS =
   'pickup_lat, pickup_lng, destination_lat, destination_lng';
 const JOB_COLUMNS =
   'id, reference, status, customer_name, customer_phone, destination_name, ' +
+  'destination_address, destination_type, ' +
   'distance_km, duration_minutes, fare_rwf, created_at, assigned_at, ' +
   'pickup_lat, pickup_lng, destination_lat, destination_lng';
 
@@ -88,6 +88,8 @@ Deno.serve(async (req) => {
             reference: b.reference,
             status: b.status,
             destination_name: b.destination_name,
+            destination_address: b.destination_address ?? null,
+            destination_type: b.destination_type ?? null,
             distance_km: b.distance_km,
             duration_minutes: b.duration_minutes,
             fare_rwf: b.fare_rwf,
@@ -108,35 +110,40 @@ Deno.serve(async (req) => {
     if (id === undefined || id === null || String(id).length > 64) return fail('Invalid request.');
 
     if (action === 'accept') {
-      const active = await db
-        .from('ride_bookings')
-        .select('id', { count: 'exact', head: true })
-        .eq('rider_id', rider.id)
-        .in('status', ['assigned', 'in_progress']);
-
-        if (active.error) {
-    console.error('Active rides lookup failed:', active.error);
-    return fail('Could not check your active rides.', 500);
-      }
-      if ((active.count ?? 0) >= MAX_ACTIVE_JOBS) {
-        return fail('Finish your current rides before accepting another.', 409);
-      }
-
-      // One statement: only succeeds if the ride is still open and unassigned.
-      const { data, error } = await db
-        .from('ride_bookings')
-        .update({ rider_id: rider.id, status: 'assigned', assigned_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('status', 'requested')
-        .is('rider_id', null)
-        .select('id')
-        .maybeSingle();
-        if (error) {
-    console.error('Ride acceptance update failed:', error);
-    return fail('Could not accept this ride. Please try again.', 500);
+      const { data, error } = await db.rpc('assign_booking_with_capacity', {
+        p_booking_id: id,
+        p_rider_id: rider.id,
+        p_only_open: true,
+      });
+      if (error) {
+        console.error('Ride acceptance RPC failed:', error);
+        if (error.message?.includes('two active jobs')) {
+          return fail('Finish your current rides before accepting another.', 409);
+        }
+        return fail('Could not accept this ride. Please try again.', 500);
       }
       if (!data) return fail('This request is no longer available.', 409);
       return json({ success: true });
+    }
+
+    if (action === 'update_location') {
+      const lat = Number(body.lat);
+      const lng = Number(body.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+          lat < -2.9 || lat > -1.0 || lng < 28.8 || lng > 30.95) {
+        return fail('A valid Rwanda location is required.', 422);
+      }
+      const updatedAt = new Date().toISOString();
+      const { data, error } = await db
+        .from('ride_bookings')
+        .update({ rider_lat: lat, rider_lng: lng, rider_location_updated_at: updatedAt })
+        .eq('id', id)
+        .eq('rider_id', rider.id)
+        .in('status', ['assigned', 'in_progress'])
+        .select('id')
+        .maybeSingle();
+      if (error || !data) return fail('Location sharing is only available for an active assigned ride.', 409);
+      return json({ success: true, updated_at: updatedAt });
     }
 
     // Moves a ride this rider owns from one status to the next.
@@ -157,12 +164,25 @@ Deno.serve(async (req) => {
         'This ride cannot be started (it may have been cancelled).');
     }
     if (action === 'complete') {
-      return move('in_progress', { status: 'completed', completed_at: new Date().toISOString() },
+      return move('in_progress', {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        rider_lat: null,
+        rider_lng: null,
+        rider_location_updated_at: null,
+      },
         'This ride is not in progress.');
     }
     if (action === 'release') {
       // Hands the ride back so another rider can take it (only before it starts).
-      return move('assigned', { status: 'requested', rider_id: null, assigned_at: null },
+      return move('assigned', {
+        status: 'requested',
+        rider_id: null,
+        assigned_at: null,
+        rider_lat: null,
+        rider_lng: null,
+        rider_location_updated_at: null,
+      },
         'This ride can no longer be released.');
     }
 

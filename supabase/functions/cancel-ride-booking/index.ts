@@ -20,6 +20,9 @@ Deno.serve(async (req) => {
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
         cancelled_by: 'customer',
+        rider_lat: null,
+        rider_lng: null,
+        rider_location_updated_at: null,
       })
       .eq('reference', booking.reference)
       .in('status', ['requested', 'assigned'])

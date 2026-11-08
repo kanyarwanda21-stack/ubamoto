@@ -1,203 +1,741 @@
-import { corsHeaders, fail, isInRwanda, json } from '../_shared/common.ts';
+import { corsHeaders, isInRwanda } from "../_shared/common.ts";
 
-// Mapbox Search Box API: finds businesses, streets, addresses and neighbourhoods.
-// "suggest" runs while typing, "retrieve" returns the exact coordinates of the one
-// suggestion the user picks. Both share a session token.
-const BASE = 'https://api.mapbox.com/search/searchbox/v1';
+const PHOTON_URL = "https://photon.komoot.io/api/";
+const MAPBOX_URL = "https://api.mapbox.com/search/searchbox/v1";
 
-// ---------- Kigali road codes: KG 11 Ave, KK 191 St, KN 5 Rd ----------
-// KG = Gasabo, KK = Kicukiro, KN = Nyarugenge. Also accepts "kg11", "KG-11", "kn 5 road".
-const ROAD_RE = /^\s*(k[gkn])\s*[-.]?\s*(\d{1,3})\s*(avenue|ave|av|street|st|road|rd)?\s*$/i;
-const SUFFIX: Record<string, string> = {
-  avenue: 'Ave',
-  ave: 'Ave',
-  av: 'Ave',
-  street: 'St',
-  st: 'St',
-  road: 'Rd',
-  rd: 'Rd',
+const REQUEST_TIMEOUT_MS = 8000;
+const MAX_QUERY_LENGTH = 100;
+const MAX_RESULTS = 6;
+const MAX_REQUESTS_PER_MINUTE = 30;
+
+// Rwanda search boundary: west, south, east, north.
+const RWANDA_BBOX = "28.8,-2.9,30.95,-1.0";
+
+type PhotonFeature = {
+  type?: string;
+  geometry?: {
+    type?: string;
+    coordinates?: unknown;
+  };
+  properties?: Record<string, unknown>;
 };
 
-type Road = { prefix: string; num: string; suffix: string | null };
+type PlaceResult = {
+  id: string;
+  name: string;
+  details: string;
+  address: string;
+  type: string;
+  category: string;
+};
 
-function parseRoadCode(query: string): Road | null {
-  const m = ROAD_RE.exec(query);
-  if (!m) return null;
+type Coordinate = {
+  lat: number;
+  lng: number;
+};
+
+const rateWindows = new Map<string, { start: number; count: number }>();
+
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200,
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function isValidCoordinate(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    isInRwanda(lat, lng)
+  );
+}
+
+function getClientKey(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const realIp = req.headers.get("x-real-ip");
+
+  // Best-effort key for per-instance rate limiting.
+  return (
+    forwarded?.split(",")[0]?.trim() ||
+    realIp ||
+    "unknown-client"
+  );
+}
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const existing = rateWindows.get(key);
+
+  if (!existing || now - existing.start >= 60_000) {
+    rateWindows.set(key, { start: now, count: 1 });
+    return false;
+  }
+
+  existing.count += 1;
+  return existing.count > MAX_REQUESTS_PER_MINUTE;
+}
+
+async function fetchJson(
+  url: string,
+): Promise<Record<string, unknown>> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Provider returned HTTP ${response.status}`);
+    }
+
+    const data: unknown = await response.json();
+
+    if (!data || typeof data !== "object") {
+      throw new Error("Provider returned an invalid response");
+    }
+
+    return data as Record<string, unknown>;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function cleanText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getPhotonCoordinates(
+  feature: PhotonFeature,
+): Coordinate | null {
+  const coordinates = feature.geometry?.coordinates;
+
+  if (
+    !Array.isArray(coordinates) ||
+    typeof coordinates[0] !== "number" ||
+    typeof coordinates[1] !== "number"
+  ) {
+    return null;
+  }
+
+  const lng = coordinates[0];
+  const lat = coordinates[1];
+
+  if (!isValidCoordinate(lat, lng)) {
+    return null;
+  }
+
+  return { lat, lng };
+}
+
+function photonCategory(properties: Record<string, unknown>): string {
+  const osmValue = cleanText(properties.osm_value).toLowerCase();
+  const type = cleanText(properties.type).toLowerCase();
+
+  const combined = `${osmValue} ${type}`;
+
+  if (
+    /hospital|clinic|doctors|pharmacy|healthcare/.test(combined)
+  ) return "health";
+
+  if (
+    /supermarket|convenience|mall|department_store|marketplace/.test(combined)
+  ) return "business";
+
+  if (
+    /restaurant|cafe|fast_food|hotel|guest_house/.test(combined)
+  ) return "business";
+
+  if (/street|road|highway|residential/.test(combined)) {
+    return "street";
+  }
+
+  if (/house|building|address/.test(combined)) {
+    return "address";
+  }
+
+  if (/neighbourhood|neighborhood|suburb|quarter/.test(combined)) {
+    return "neighborhood";
+  }
+
+  if (/city|town|village|locality/.test(combined)) {
+    return "place";
+  }
+
+  return "place";
+}
+
+function photonName(properties: Record<string, unknown>): string {
+  return (
+    cleanText(properties.name) ||
+    cleanText(properties.street) ||
+    cleanText(properties.locality) ||
+    cleanText(properties.city) ||
+    cleanText(properties.district) ||
+    ""
+  );
+}
+
+function photonAddress(properties: Record<string, unknown>): string {
+  const parts = [
+    cleanText(properties.housenumber),
+    cleanText(properties.street),
+    cleanText(properties.suburb),
+    cleanText(properties.district),
+    cleanText(properties.city),
+  ].filter(Boolean);
+
+  return [...new Set(parts)].join(", ");
+}
+
+function photonFeatureId(
+  query: string,
+  properties: Record<string, unknown>,
+): string | null {
+  const osmType = cleanText(properties.osm_type);
+  const osmId = properties.osm_id;
+
+  if (
+    !osmType ||
+    (typeof osmId !== "string" && typeof osmId !== "number")
+  ) {
+    return null;
+  }
+
+  // The browser cannot use this ID to submit arbitrary coordinates.
+  // Retrieval repeats the search and verifies the OSM identity.
+  return `photon:${encodeURIComponent(JSON.stringify({
+    q: query,
+    osm_type: osmType,
+    osm_id: String(osmId),
+  }))}`;
+}
+
+function distanceScore(
+  lat: number,
+  lng: number,
+  near: Coordinate | null,
+): number {
+  if (!near) return 0;
+
+  const latDifference = lat - near.lat;
+  const lngDifference = (lng - near.lng) *
+    Math.cos((near.lat * Math.PI) / 180);
+
+  return Math.sqrt(
+    latDifference * latDifference +
+    lngDifference * lngDifference,
+  );
+}
+
+function rankPhotonResults(
+  features: PhotonFeature[],
+  query: string,
+  near: Coordinate | null,
+): PlaceResult[] {
+  const normalizedQuery = query.toLowerCase().replace(/\s+/g, " ");
+  const seen = new Set<string>();
+
+  const ranked = features
+    .map((feature) => {
+      const properties = feature.properties ?? {};
+      const coordinates = getPhotonCoordinates(feature);
+      const name = photonName(properties);
+
+      if (!coordinates || !name) return null;
+
+      const id = photonFeatureId(query, properties);
+      if (!id) return null;
+
+      const address = photonAddress(properties);
+      const searchable = `${name} ${address}`.toLowerCase();
+
+      let score = 0;
+
+      if (name.toLowerCase() === normalizedQuery) score += 100;
+      else if (name.toLowerCase().startsWith(normalizedQuery)) score += 60;
+      else if (searchable.includes(normalizedQuery)) score += 30;
+
+      // Prefer more specific results over broad administrative areas.
+      const category = photonCategory(properties);
+      if (["business", "health", "address", "street"].includes(category)) {
+        score += 10;
+      }
+
+      score -= distanceScore(
+        coordinates.lat,
+        coordinates.lng,
+        near,
+      ) * 2;
+
+      const type = cleanText(properties.osm_value) ||
+        cleanText(properties.type) ||
+        category;
+
+      return {
+        id,
+        name,
+        details: address || type,
+        address,
+        type,
+        category,
+        score,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .sort((a, b) => b.score - a.score);
+
+  const results: PlaceResult[] = [];
+
+  for (const item of ranked) {
+    const key = `${item.name.toLowerCase()}|${item.address.toLowerCase()}`;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    results.push({
+      id: item.id,
+      name: item.name,
+      details: item.details,
+      address: item.address,
+      type: item.type,
+      category: item.category,
+    });
+
+    if (results.length >= MAX_RESULTS) break;
+  }
+
+  return results;
+}
+
+async function searchPhoton(
+  query: string,
+  near: Coordinate | null,
+): Promise<PlaceResult[]> {
+  const url = new URL(PHOTON_URL);
+
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", "20");
+  url.searchParams.set("lang", "en");
+  url.searchParams.set("bbox", RWANDA_BBOX);
+
+  if (near) {
+    url.searchParams.set("lat", String(near.lat));
+    url.searchParams.set("lon", String(near.lng));
+    url.searchParams.set("zoom", "13");
+  }
+
+  const data = await fetchJson(url.toString());
+  const features = Array.isArray(data.features)
+    ? data.features as PhotonFeature[]
+    : [];
+
+  return rankPhotonResults(features, query, near);
+}
+
+async function searchMapbox(
+  query: string,
+  near: Coordinate | null,
+  session: string,
+  token: string,
+): Promise<PlaceResult[]> {
+  const url = new URL(`${MAPBOX_URL}/suggest`);
+
+  url.searchParams.set("q", query);
+  url.searchParams.set("access_token", token);
+  url.searchParams.set("session_token", session);
+  url.searchParams.set("country", "RW");
+  url.searchParams.set("language", "en");
+  url.searchParams.set("limit", String(MAX_RESULTS));
+
+  if (near) {
+    url.searchParams.set(
+      "proximity",
+      `${near.lng},${near.lat}`,
+    );
+  }
+
+  const data = await fetchJson(url.toString());
+  const suggestions = Array.isArray(data.suggestions)
+    ? data.suggestions as Record<string, unknown>[]
+    : [];
+
+  return suggestions
+    .map((item): PlaceResult | null => {
+      const mapboxId = cleanText(item.mapbox_id);
+      const name = cleanText(item.name);
+
+      if (!mapboxId || !name) return null;
+
+      const featureType = cleanText(item.feature_type) || "place";
+      const address = cleanText(item.full_address) ||
+        cleanText(item.place_formatted);
+
+      return {
+        id: `mapbox:${encodeURIComponent(mapboxId)}`,
+        name,
+        details: address || featureType,
+        address,
+        type: featureType,
+        category: featureType,
+      };
+    })
+    .filter((item): item is PlaceResult => item !== null)
+    .slice(0, MAX_RESULTS);
+}
+
+async function retrievePhoton(
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  const encoded = id.slice("photon:".length);
+
+  let payload: unknown;
+
+  try {
+    payload = JSON.parse(decodeURIComponent(encoded));
+  } catch {
+    return null;
+  }
+
+  if (!payload || typeof payload !== "object") return null;
+
+  const data = payload as Record<string, unknown>;
+  const query = cleanText(data.q);
+  const osmType = cleanText(data.osm_type);
+  const osmId = cleanText(data.osm_id);
+
+  if (
+    !query ||
+    query.length > MAX_QUERY_LENGTH ||
+    !osmType ||
+    !osmId
+  ) {
+    return null;
+  }
+
+  const url = new URL(PHOTON_URL);
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", "20");
+  url.searchParams.set("lang", "en");
+  url.searchParams.set("bbox", RWANDA_BBOX);
+
+  const response = await fetchJson(url.toString());
+
+  const features = Array.isArray(response.features)
+    ? response.features as PhotonFeature[]
+    : [];
+
+  const feature = features.find((item) => {
+    const properties = item.properties ?? {};
+
+    return (
+      cleanText(properties.osm_type) === osmType &&
+      String(properties.osm_id ?? "") === osmId
+    );
+  });
+
+  if (!feature) return null;
+
+  const coordinates = getPhotonCoordinates(feature);
+  const properties = feature.properties ?? {};
+
+  if (!coordinates) return null;
+
+  const name = photonName(properties);
+  if (!name) return null;
+
   return {
-    prefix: m[1].toUpperCase(),
-    num: String(Number(m[2])),
-    suffix: m[3] ? SUFFIX[m[3].toLowerCase()] : null,
+    success: true,
+    provider: "photon",
+    name,
+    address: photonAddress(properties),
+    type: cleanText(properties.osm_value) ||
+      cleanText(properties.type),
+    category: photonCategory(properties),
+    lat: coordinates.lat,
+    lng: coordinates.lng,
   };
 }
 
-// Returns how well a result matches the road: 0 exact, 1 same code (no suffix given),
-// or null when it is a different road (other number, or other Ave/St/Rd).
-function roadMatch(text: string, road: Road): number | null {
-  const re = new RegExp(
-    `\\b${road.prefix}\\s*[-.]?\\s*0*${road.num}(?!\\d)\\s*(avenue|ave|av|street|st|road|rd)?`,
-    'i'
-  );
-  const m = re.exec(text);
-  if (!m) return null;
-
-  const found = m[1] ? SUFFIX[m[1].toLowerCase()] : null;
-  if (road.suffix) {
-    if (found && found !== road.suffix) return null; // e.g. asked "KG 14 Ave", got "KG 14 St"
-    return found === road.suffix ? 0 : 1;
-  }
-  return found ? 1 : 0;
-}
-
-// ---------- Ranking for normal searches ----------
-const PRIORITY: Record<string, number> = {
-  poi: 0,
-  street: 1,
-  address: 1,
-  neighborhood: 2,
-  locality: 2,
-};
-const GENERIC = new Set(['place', 'region', 'district', 'country', 'postcode']);
-
-async function suggest(
-  q: string,
-  types: string,
-  token: string,
+async function retrieveMapbox(
+  id: string,
   session: string,
-  near: string
-): Promise<any[]> {
-  const response = await fetch(
-    `${BASE}/suggest?q=${encodeURIComponent(q)}` +
-      `&session_token=${session}&country=rw&language=en&limit=8` +
-      `&types=${types}${near}&access_token=${token}`
-  );
-  if (!response.ok) throw new Error('upstream');
-  return (await response.json()).suggestions ?? [];
-}
-
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  token: string,
+): Promise<Record<string, unknown> | null> {
+  let mapboxId: string;
 
   try {
-    const { action, q, lat, lon, id, session } = await req.json();
+    mapboxId = decodeURIComponent(id.slice("mapbox:".length));
+  } catch {
+    return null;
+  }
 
-    const token = Deno.env.get('MAPBOX_TOKEN');
-    if (!token) return fail('Place search is not configured.', 500);
+  if (!mapboxId || mapboxId.length > 500) return null;
 
-    const sessionToken = String(session ?? '');
-    if (!/^[\w-]{10,64}$/.test(sessionToken)) return fail('Invalid request.');
+  const url = new URL(
+    `${MAPBOX_URL}/retrieve/${encodeURIComponent(mapboxId)}`,
+  );
 
-    if (action === 'retrieve') {
-      const placeId = String(id ?? '');
-      if (!placeId || placeId.length > 500) return fail('Invalid request.');
+  url.searchParams.set("access_token", token);
+  url.searchParams.set("session_token", session);
 
-      let response: Response;
-      try {
-        response = await fetch(
-          `${BASE}/retrieve/${encodeURIComponent(placeId)}` +
-            `?session_token=${sessionToken}&access_token=${token}`
+  const data = await fetchJson(url.toString());
+  const features = Array.isArray(data.features)
+    ? data.features as Record<string, unknown>[]
+    : [];
+
+  const feature = features[0];
+  if (!feature) return null;
+
+  const geometry = feature.geometry as
+    | { coordinates?: unknown }
+    | undefined;
+
+  const coordinates = geometry?.coordinates;
+
+  if (
+    !Array.isArray(coordinates) ||
+    typeof coordinates[0] !== "number" ||
+    typeof coordinates[1] !== "number"
+  ) {
+    return null;
+  }
+
+  const lng = coordinates[0];
+  const lat = coordinates[1];
+
+  if (!isValidCoordinate(lat, lng)) return null;
+
+  const properties = feature.properties as
+    | Record<string, unknown>
+    | undefined;
+
+  const name = cleanText(properties?.name);
+
+  if (!name) return null;
+
+  return {
+    success: true,
+    provider: "mapbox",
+    name,
+    address: cleanText(properties?.full_address) ||
+      cleanText(properties?.place_formatted),
+    type: cleanText(properties?.feature_type),
+    category: cleanText(properties?.feature_type),
+    lat,
+    lng,
+  };
+}
+
+Deno.serve(async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResponse(
+      { success: false, error: "Method not allowed" },
+      405,
+    );
+  }
+
+  const clientKey = getClientKey(req);
+
+  if (isRateLimited(clientKey)) {
+    return jsonResponse(
+      {
+        success: false,
+        error: "Too many search requests. Please wait and try again.",
+      },
+      429,
+    );
+  }
+
+  let body: Record<string, unknown>;
+
+  try {
+    const parsed: unknown = await req.json();
+
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error("Invalid request body");
+    }
+
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return jsonResponse(
+      { success: false, error: "Invalid request body" },
+      400,
+    );
+  }
+
+  const action = cleanText(body.action);
+  const session = cleanText(body.session);
+
+  if (!/^[\w-]{10,64}$/.test(session)) {
+    return jsonResponse(
+      { success: false, error: "Invalid search session" },
+      400,
+    );
+  }
+
+  const mapboxToken = Deno.env.get("MAPBOX_TOKEN") ?? "";
+
+  if (action === "retrieve") {
+    const id = cleanText(body.id);
+
+    if (!id || id.length > 2000) {
+      return jsonResponse(
+        { success: false, error: "Invalid place selection" },
+        400,
+      );
+    }
+
+    try {
+      let place: Record<string, unknown> | null = null;
+
+      if (id.startsWith("photon:")) {
+        place = await retrievePhoton(id);
+      } else if (id.startsWith("mapbox:") && mapboxToken) {
+        place = await retrieveMapbox(id, session, mapboxToken);
+      }
+
+      if (!place) {
+        return jsonResponse(
+          {
+            success: false,
+            error: "That place could not be retrieved. Please search again.",
+          },
+          404,
         );
-      } catch {
-        return fail('Could not load that place. Try again.', 502);
-      }
-      if (!response.ok) return fail('Could not load that place. Try again.', 502);
-
-      const feature = (await response.json()).features?.[0];
-      const [lng, latitude] = feature?.geometry?.coordinates ?? [];
-      if (!isInRwanda(latitude, lng)) {
-        return fail('That place is outside Rwanda. Choose a place in Rwanda.', 422);
       }
 
-      return json({
-        success: true,
-        place: {
-          name: feature.properties?.name ?? 'Unnamed place',
-          lat: latitude,
-          lng,
+      return jsonResponse(place);
+    } catch {
+      return jsonResponse(
+        {
+          success: false,
+          error: "The place provider is temporarily unavailable.",
         },
+        502,
+      );
+    }
+  }
+
+  if (action !== "suggest") {
+    return jsonResponse(
+      { success: false, error: "Unsupported search action" },
+      400,
+    );
+  }
+
+  const query = cleanText(body.q).replace(/\s+/g, " ");
+
+  if (query.length < 2) {
+    return jsonResponse(
+      { success: true, results: [], provider: "photon" },
+    );
+  }
+
+  if (query.length > MAX_QUERY_LENGTH) {
+    return jsonResponse(
+      { success: false, error: "Search text is too long" },
+      400,
+    );
+  }
+
+  let near: Coordinate | null = null;
+
+  if (body.lat !== undefined || body.lon !== undefined) {
+    if (
+      typeof body.lat === "number" &&
+      typeof body.lon === "number" &&
+      isValidCoordinate(body.lat, body.lon)
+    ) {
+      near = { lat: body.lat, lng: body.lon };
+    }
+  }
+
+  let photonError = false;
+
+  try {
+    const photonResults = await searchPhoton(query, near);
+
+    if (photonResults.length > 0) {
+      return jsonResponse({
+        success: true,
+        results: photonResults,
+        provider: "photon",
+        attribution: "Place data © OpenStreetMap contributors",
       });
     }
-
-    // ---------- suggest ----------
-    const query = String(q ?? '').trim();
-    if (query.length < 3 || query.length > 100) {
-      return json({ success: true, results: [] });
-    }
-
-    const near =
-      Number.isFinite(lat) && Number.isFinite(lon) ? `&proximity=${lon},${lat}` : '';
-    const road = parseRoadCode(query);
-
-    let raw: any[];
-    try {
-      if (road) {
-        // Roads only (never cities), searching the written form people use on signs.
-        const base = `${road.prefix} ${road.num}`;
-        const queries = road.suffix
-          ? [`${base} ${road.suffix}`]
-          : [`${base} Ave`, `${base} St`, `${base} Rd`, base];
-        const batches = await Promise.all(
-          queries.map((text) => suggest(text, 'street,address,poi', token, sessionToken, near))
-        );
-        raw = batches.flat();
-      } else {
-        raw = await suggest(
-          query,
-          'poi,street,address,neighborhood,locality,place',
-          token,
-          sessionToken,
-          near
-        );
-      }
-    } catch {
-      return fail('Place search is temporarily unavailable. Try again.', 502);
-    }
-
-    const lowered = query.toLowerCase();
-    const seen = new Set<string>();
-    const ranked: { item: any; score: number; distance: number }[] = [];
-
-    for (const s of raw) {
-      const key = s.mapbox_id ?? `${s.name}|${s.full_address ?? s.place_formatted}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const text = `${s.name ?? ''} ${s.full_address ?? ''}`;
-      let score: number;
-
-      if (road) {
-        const match = roadMatch(text, road); // keeps only the road that was asked for
-        if (match === null) continue;
-        score = match;
-      } else {
-        const type = String(s.feature_type ?? '');
-        const name = String(s.name ?? '').toLowerCase();
-        // Hide "Kigali" and other big areas unless the customer typed them.
-        if (GENERIC.has(type) && !(lowered.includes(name) || name.startsWith(lowered))) {
-          continue;
-        }
-        score = PRIORITY[type] ?? 3;
-      }
-
-      ranked.push({ item: s, score, distance: Number(s.distance ?? Infinity) });
-    }
-
-    ranked.sort((a, b) => a.score - b.score || a.distance - b.distance);
-
-    const results = ranked.slice(0, 6).map(({ item }) => ({
-      id: item.mapbox_id,
-      name: item.name ?? 'Unnamed place',
-      details: item.full_address ?? item.place_formatted ?? item.address ?? '',
-    }));
-
-    const notice =
-      results.length === 0
-        ? road
-          ? `We couldn't find ${road.prefix} ${road.num}${road.suffix ? ` ${road.suffix}` : ''} in our map data. Tap "Choose on the map" and tap the exact spot.`
-          : 'No match found. Try another spelling, or tap "Choose on the map" and tap the exact spot.'
-        : undefined;
-
-    return json({ success: true, results, notice });
   } catch {
-    return fail('Invalid request.');
+    photonError = true;
   }
+
+  // Mapbox is a fallback, not the primary provider.
+  if (mapboxToken) {
+    try {
+      const mapboxResults = await searchMapbox(
+        query,
+        near,
+        session,
+        mapboxToken,
+      );
+
+      return jsonResponse({
+        success: true,
+        results: mapboxResults,
+        provider: "mapbox",
+        notice: photonError
+          ? "Using the backup place-search provider."
+          : undefined,
+      });
+    } catch {
+      if (photonError) {
+        return jsonResponse(
+          {
+            success: false,
+            error: "Place search providers are temporarily unavailable. Please try again.",
+          },
+          502,
+        );
+      }
+    }
+  }
+
+  if (photonError) {
+    return jsonResponse(
+      {
+        success: false,
+        error: "Place search is temporarily unavailable. Please try again.",
+      },
+      502,
+    );
+  }
+
+  return jsonResponse({
+    success: true,
+    results: [],
+    provider: "photon",
+    notice: "No matching place was found. Try another spelling or choose the location on the map.",
+    attribution: "Place data © OpenStreetMap contributors",
+  });
 });

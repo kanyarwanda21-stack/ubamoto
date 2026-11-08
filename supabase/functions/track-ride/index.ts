@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
       // Same answer for "wrong code" and "no such ride" so nobody can probe references.
       results.push(
         booking
-          ? { found: true, ...publicView(booking) }
+          ? { found: true, ...(await publicView(booking)) }
           : { found: false, reference: String(cred?.reference ?? '').slice(0, 20) }
       );
     }

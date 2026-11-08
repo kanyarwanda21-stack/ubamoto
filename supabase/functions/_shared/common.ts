@@ -2,7 +2,7 @@
 // The fare rules here are authoritative. Keep them in sync with src/fare.js.
 
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
+  'Access-Control-Allow-Origin': globalThis.Deno?.env?.get('ALLOWED_ORIGIN') ?? '*',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -167,6 +167,20 @@ export function newToken() {
 export async function sha256Hex(text: string) {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(text));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function randomToken(bytes = 32) {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
+    b.toString(16).padStart(2, '0')
+  ).join('');
+}
+
+export function riderSyntheticEmail(phone: string) {
+  return `rider-${phone.replace(/\D/g, '')}@riders.ubamoto.local`;
+}
+
+export async function hashRiderPin(phone: string, pin: string, salt: string) {
+  return sha256Hex(`ubamoto-rider-pin:${phone}:${salt}:${pin}`);
 }
 
 export function safeEqual(a: string, b: string) {

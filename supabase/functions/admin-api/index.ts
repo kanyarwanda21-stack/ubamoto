@@ -5,6 +5,9 @@ import {
   json,
   normalizePhone,
   normalizeReference,
+  randomToken,
+  hashRiderPin,
+  riderSyntheticEmail,
 } from '../_shared/common.ts';
 
 import {
@@ -15,6 +18,7 @@ import {
 
 const BOOKING_COLUMNS =
   'id, reference, status, customer_name, customer_phone, destination_name, distance_km, ' +
+  'destination_address, destination_type, ' +
   'fare_rwf, created_at, assigned_at, completed_at, cancelled_at, cancelled_by, rider_id, ' +
   'rider:riders(name, phone, plate_number)';
 
@@ -137,17 +141,14 @@ Deno.serve(async (req) => {
 
     // 5. Create a rider account.
     if (action === 'create_rider') {
-      const email = String(body.email ?? '').trim().toLowerCase();
       const name = String(body.name ?? '').trim();
       const phone = normalizePhone(String(body.phone ?? ''));
+      const pin = String(body.pin ?? '').trim();
       const plate = String(body.plate_number ?? '')
         .trim()
         .toUpperCase()
         .slice(0, 20);
-
-      if (!/^\S+@\S+\.\S+$/.test(email)) {
-        return fail('Enter a valid email.');
-      }
+      const passportPhotoPath = String(body.passport_photo_path ?? '').trim();
 
       if (!name || name.length > 100) {
         return fail('Enter the rider\'s name.');
@@ -156,12 +157,18 @@ Deno.serve(async (req) => {
       if (!phone) {
         return fail('Enter a valid Rwandan phone number.');
       }
+      if (!/^\d{4,6}$/.test(pin)) {
+        return fail('PIN must contain 4 to 6 digits.');
+      }
+      const existing = await db.from('riders').select('id').eq('phone', phone).maybeSingle();
+      if (existing.data) return fail('A rider account already exists for this phone number.', 409);
 
-      const created = await db.auth.admin.inviteUserByEmail(email, {
-        data: { name },
-        ...(String(body.redirect_to ?? '').trim()
-          ? { redirectTo: String(body.redirect_to).trim() }
-          : {}),
+      const email = riderSyntheticEmail(phone);
+      const created = await db.auth.admin.createUser({
+        email,
+        password: randomToken(24),
+        email_confirm: true,
+        user_metadata: { name, phone, account_type: 'rider' },
       });
 
       if (created.error || !created.data.user) {
@@ -172,12 +179,16 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Preserve the original pending-verification process.
+      const pinSalt = randomToken(16);
+      const pinHash = await hashRiderPin(phone, pin, pinSalt);
       const { error } = await db.from('riders').insert({
         id: created.data.user.id,
         name,
         phone,
         plate_number: plate || null,
+        passport_photo_path: passportPhotoPath || null,
+        pin_salt: pinSalt,
+        pin_hash: pinHash,
         status: 'pending',
       });
 
@@ -221,6 +232,33 @@ Deno.serve(async (req) => {
         : fail('Rider not found.', 404);
     }
 
+    // 7. Set or reset an existing rider's phone-login PIN.
+    if (action === 'set_rider_pin') {
+      const riderId = String(body.rider_id ?? '');
+      const pin = String(body.pin ?? '').trim();
+      if (!/^\d{4,6}$/.test(pin)) {
+        return fail('PIN must contain 4 to 6 digits.');
+      }
+
+      const { data: rider, error: riderError } = await db
+        .from('riders')
+        .select('phone')
+        .eq('id', riderId)
+        .maybeSingle();
+      if (riderError || !rider) return fail('Rider not found.', 404);
+
+      const pinSalt = randomToken(16);
+      const pinHash = await hashRiderPin(rider.phone, pin, pinSalt);
+      const { data, error } = await db
+        .from('riders')
+        .update({ pin_salt: pinSalt, pin_hash: pinHash })
+        .eq('id', riderId)
+        .select('id')
+        .maybeSingle();
+      if (error) return fail('Could not update the PIN.', 500);
+      return data ? json({ success: true }) : fail('Rider not found.', 404);
+    }
+
     // 7. Assign a booking to a verified rider.
     if (action === 'assign') {
       const riderId = String(body.rider_id ?? '');
@@ -254,7 +292,7 @@ Deno.serve(async (req) => {
       const status = String(body.status ?? '');
       let query = db
         .from('rider_applications')
-        .select('id,name,phone,plate_number,licence_number,status,created_at,reviewed_at')
+          .select('id,name,phone,plate_number,licence_number,passport_photo_path,status,created_at,reviewed_at')
         .order('created_at', { ascending: false })
         .limit(100);
       if (['new', 'approved', 'rejected'].includes(status)) {
@@ -262,7 +300,17 @@ Deno.serve(async (req) => {
       }
       const { data, error } = await query;
       if (error) return fail('Could not load rider applications.', 500);
-      return json({ success: true, applications: data ?? [] });
+      const applications = await Promise.all((data ?? []).map(async (application: any) => {
+        let passport_photo_url = null;
+        if (application.passport_photo_path) {
+          const signed = await db.storage
+            .from('rider-passports')
+            .createSignedUrl(application.passport_photo_path, 600);
+          if (!signed.error) passport_photo_url = signed.data.signedUrl;
+        }
+        return { ...application, passport_photo_url };
+      }));
+      return json({ success: true, applications });
     }
 
     // 9. Review an application without exposing applicant consent or IP data.
@@ -298,6 +346,9 @@ Deno.serve(async (req) => {
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
           cancelled_by: 'staff',
+          rider_lat: null,
+          rider_lng: null,
+          rider_location_updated_at: null,
         })
         .eq('id', bookingId)
         .in('status', ['requested', 'assigned', 'in_progress'])

@@ -30,8 +30,9 @@ export async function getStaff(userId: string) {
 const BOOKING_COLUMNS =
   'id, reference, access_token_hash, status, customer_name, customer_phone, ' +
   'pickup_lat, pickup_lng, destination_name, destination_lat, destination_lng, ' +
+  'destination_address, destination_type, rider_lat, rider_lng, rider_location_updated_at, ' +
   'distance_km, duration_minutes, fare_rwf, created_at, rider_id, ' +
-  'rider:riders(name, phone, plate_number)';
+  'rider:riders(name, phone, plate_number, passport_photo_path)';
 
 // Finds a booking only if the caller proves it is theirs.
 export async function authorizeBooking(cred: any) {
@@ -58,20 +59,47 @@ export async function authorizeBooking(cred: any) {
 
 // What a customer is allowed to see. The rider is shown only while a real
 // assignment exists.
-export function publicView(b: any) {
+export async function publicView(b: any) {
   const showRider = ['assigned', 'in_progress'].includes(b.status) && b.rider;
+  const locationAgeMs = b.rider_location_updated_at
+    ? Date.now() - new Date(b.rider_location_updated_at).getTime()
+    : Infinity;
+  const liveRiderLocation =
+    showRider &&
+    Number.isFinite(b.rider_lat) &&
+    Number.isFinite(b.rider_lng) &&
+    locationAgeMs >= 0 &&
+    locationAgeMs <= 2 * 60 * 1000
+      ? [b.rider_lat, b.rider_lng]
+      : null;
+  let passportPhotoUrl = null;
+  if (showRider && b.rider.passport_photo_path) {
+    const signed = await db.storage
+      .from('rider-passports')
+      .createSignedUrl(b.rider.passport_photo_path, 600);
+    if (!signed.error) passportPhotoUrl = signed.data.signedUrl;
+  }
   return {
     reference: b.reference,
     status: b.status,
     destination_name: b.destination_name,
+    destination_address: b.destination_address ?? null,
+    destination_type: b.destination_type ?? null,
     pickup: [b.pickup_lat, b.pickup_lng],
     destination: [b.destination_lat, b.destination_lng],
+    rider_location: liveRiderLocation,
+    rider_location_updated_at: liveRiderLocation ? b.rider_location_updated_at : null,
     distance_km: b.distance_km,
     duration_minutes: b.duration_minutes,
     fare_rwf: b.fare_rwf,
     created_at: b.created_at,
     rider: showRider
-      ? { name: b.rider.name, phone: b.rider.phone, plate_number: b.rider.plate_number }
+      ? {
+          name: b.rider.name,
+          phone: b.rider.phone,
+          plate_number: b.rider.plate_number,
+          passport_photo_url: passportPhotoUrl,
+        }
       : null,
   };
 }

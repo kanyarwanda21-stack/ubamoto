@@ -44,11 +44,13 @@ import {
   getFareBreakdown,
 } from './fare';
 import { KIGALI, isInRwanda, normalizeRwandaPhone } from './lib/geo';
+import { hasValidPlaceCoordinates } from './lib/placeSearch';
 import {
   cancelRideRequest,
   createBooking,
   estimateRoute,
   retrievePlace,
+  reverseGeocode,
   searchPlaces,
   trackRides,
   riderApi,
@@ -61,7 +63,7 @@ import { useSession } from './lib/auth';
 // Rider screens are loaded only when someone opens #/rider. Admin code is not shipped here.
 const RiderPortal = lazy(() => import('./riderportal.jsx'));
 
-const ACTIVE_STATUSES = ['requested', 'assigned', 'in_progress'];
+const ACTIVE_STATUSES = ['requested', 'assigned', 'arrived', 'in_progress'];
 
 const PINNED_LABEL = 'Pinned location';
 const NO_ROUTE = [];
@@ -230,6 +232,7 @@ function App() {
   const [selectedDestinationName, setSelectedDestinationName] = useState('');
   const [selectedDestinationAddress, setSelectedDestinationAddress] = useState('');
   const [selectedDestinationType, setSelectedDestinationType] = useState('');
+  const destinationRef = useRef(null);
 
   // quote = { distance_km, duration_minutes, fare_rwf, expires_at, quote, geometry }
   // It comes from the server, which is the only place fares are calculated.
@@ -270,7 +273,7 @@ function App() {
 
   const routeCoordinates = quote ? quote.geometry : NO_ROUTE;
   const liveRiderRide = rides.find(
-    (ride) => ['assigned', 'in_progress'].includes(ride.status) && Array.isArray(ride.riderLocation)
+    (ride) => ['assigned', 'arrived', 'in_progress'].includes(ride.status) && Array.isArray(ride.riderLocation)
   );
   const liveRiderLocation = liveRiderRide?.riderLocation ?? null;
 
@@ -442,6 +445,7 @@ function App() {
     }
 
     setDestinationPosition(position);
+    destinationRef.current = position;
     if (focus) setMapFocus({ position, zoom: 17 });
     setActiveMapTarget('destination');
     setDestination(name || '');
@@ -454,6 +458,28 @@ function App() {
     return true;
   }
 
+  async function reverseLookupPinnedDestination(position) {
+    if (!selectDestination(position, PINNED_LABEL, true)) return;
+    try {
+      const { place } = await reverseGeocode(
+        position[0],
+        position[1],
+        sessionRef.current
+      );
+      if (
+        destinationRef.current?.[0] === position[0] &&
+        destinationRef.current?.[1] === position[1]
+      ) {
+        setDestination(place.name || PINNED_LABEL);
+        setSelectedDestinationName(place.name || PINNED_LABEL);
+        setSelectedDestinationAddress(place.address || '');
+        setSelectedDestinationType(place.type || '');
+      }
+    } catch {
+      setSearchMessage('Address lookup is unavailable. Your pinned destination coordinates are retained.');
+    }
+  }
+
   // Fetches the exact coordinates of the chosen suggestion, then shows it on the map.
   async function chooseSearchResult(place) {
     setSearching(true);
@@ -462,6 +488,9 @@ function App() {
     try {
       const { place: found } = await retrievePlace(place.id, sessionRef.current);
       sessionRef.current = newSessionId();
+      if (!hasValidPlaceCoordinates(found)) {
+        throw new Error('That place has no valid coordinates. Please search again.');
+      }
       selectDestination(
         [found.lat, found.lng],
         found.name || place.name,
@@ -630,6 +659,7 @@ function App() {
         destination_name: destinationLabel,
         destination_address: selectedDestinationAddress,
         destination_type: selectedDestinationType,
+        pickup_name: 'Pickup point',
         quote: quote.quote,
         accepted_terms: true,
       });
@@ -729,7 +759,8 @@ function App() {
         const sameLocation = JSON.stringify(fresh.rider_location ?? null) === JSON.stringify(ride.riderLocation ?? null);
         if (fresh.status === ride.status && sameRider && sameLocation &&
             fresh.destination_address === ride.destinationAddress &&
-            fresh.destination_type === ride.destinationType) return ride;
+            fresh.destination_type === ride.destinationType &&
+            JSON.stringify(fresh.route_geometry ?? null) === JSON.stringify(ride.routeGeometry ?? null)) return ride;
         changed = true;
         announceChange(ride, fresh);
         return {
@@ -740,6 +771,11 @@ function App() {
           riderLocationUpdatedAt: fresh.rider_location_updated_at ?? null,
           destinationAddress: fresh.destination_address ?? ride.destinationAddress ?? null,
           destinationType: fresh.destination_type ?? ride.destinationType ?? null,
+          pickupName: fresh.pickup_name ?? ride.pickupName ?? 'Pickup point',
+          pickup: fresh.pickup ?? ride.pickup,
+          destination: fresh.destination ?? ride.destination,
+          routeGeometry: fresh.route_geometry ?? ride.routeGeometry ?? null,
+          routeProvider: fresh.route_provider ?? ride.routeProvider ?? null,
         };
       });
 
@@ -817,6 +853,9 @@ function App() {
         durationMinutes: found.duration_minutes,
         pickup: found.pickup,
         destination: found.destination,
+        routeGeometry: found.route_geometry,
+        routeProvider: found.route_provider,
+        pickupName: found.pickup_name,
         status: found.status,
       };
       const next = [ride, ...ridesRef.current].slice(0, 50);
@@ -876,7 +915,7 @@ function App() {
         onSelect={
           activeMapTarget === 'pickup'
             ? (point) => selectPickup(point)
-            : (point) => selectDestination(point, PINNED_LABEL)
+            : (point) => reverseLookupPinnedDestination(point)
         }
       />
 
@@ -918,9 +957,11 @@ function App() {
           eventHandlers={{
             dragend(event) {
               const point = event.target.getLatLng();
-              if (!selectDestination([point.lat, point.lng], PINNED_LABEL)) {
+              if (!isInRwanda([point.lat, point.lng])) {
                 event.target.setLatLng(destinationPosition);
+                return;
               }
+              reverseLookupPinnedDestination([point.lat, point.lng]);
             },
           }}
         >
@@ -1404,6 +1445,7 @@ function App() {
                           setSelectedDestinationAddress('');
                           setSelectedDestinationType('');
                           setDestinationPosition(null);
+                          destinationRef.current = null;
                           clearRoute();
                           setSearchMessage('');
                         }}

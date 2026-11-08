@@ -188,3 +188,11 @@ a {
     flex-wrap: wrap;
   }
 }
+
+.rider-map {
+  margin: 12px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #eef3ef;
+}

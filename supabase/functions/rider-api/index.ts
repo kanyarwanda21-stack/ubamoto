@@ -11,6 +11,7 @@ const OPEN_COLUMNS =
 const JOB_COLUMNS =
   'id, reference, status, customer_name, customer_phone, destination_name, ' +
   'destination_address, destination_type, ' +
+  'pickup_name, route_geometry, route_provider, rider_lat, rider_lng, rider_location_updated_at, ' +
   'distance_km, duration_minutes, fare_rwf, created_at, assigned_at, ' +
   'pickup_lat, pickup_lng, destination_lat, destination_lng';
 
@@ -113,10 +114,17 @@ Deno.serve(async (req) => {
             reference: b.reference,
             status: b.status,
             destination_name: b.destination_name,
+            pickup_name: b.pickup_name ?? 'Pickup point',
             destination_address: b.destination_address ?? null,
             destination_type: b.destination_type ?? null,
             distance_km: b.distance_km,
             duration_minutes: b.duration_minutes,
+            route_geometry: Array.isArray(b.route_geometry) ? b.route_geometry : null,
+            route_provider: b.route_provider ?? null,
+            rider_location: live && Number.isFinite(b.rider_lat) && Number.isFinite(b.rider_lng)
+              ? [b.rider_lat, b.rider_lng]
+              : null,
+            rider_location_updated_at: live ? b.rider_location_updated_at ?? null : null,
             fare_rwf: b.fare_rwf,
             created_at: b.created_at,
             // Customer details only while the ride is live.
@@ -164,7 +172,7 @@ Deno.serve(async (req) => {
         .update({ rider_lat: lat, rider_lng: lng, rider_location_updated_at: updatedAt })
         .eq('id', id)
         .eq('rider_id', rider.id)
-        .in('status', ['assigned', 'in_progress'])
+        .in('status', ['assigned', 'arrived', 'in_progress'])
         .select('id')
         .maybeSingle();
       if (error || !data) return fail('Location sharing is only available for an active assigned ride.', 409);

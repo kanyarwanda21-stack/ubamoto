@@ -2,6 +2,7 @@ import { corsHeaders, isInRwanda, rejectDisallowedOrigin, preflightHeaders } fro
 import { checkRateLimit } from "../_shared/db.ts";
 
 const PHOTON_URL = "https://photon.komoot.io/api/";
+const PHOTON_REVERSE_URL = "https://photon.komoot.io/reverse";
 const MAPBOX_URL = "https://api.mapbox.com/search/searchbox/v1";
 
 const REQUEST_TIMEOUT_MS = 8000;
@@ -571,6 +572,82 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const mapboxToken = Deno.env.get("MAPBOX_TOKEN") ?? "";
 
+  if (action === "reverse") {
+    if (
+      typeof body.lat !== "number" ||
+      typeof body.lon !== "number" ||
+      !isValidCoordinate(body.lat, body.lon)
+    ) {
+      return jsonResponse(
+        { success: false, error: "Invalid reverse-geocoding coordinate" },
+        400,
+      );
+    }
+
+    try {
+      const url = new URL(PHOTON_REVERSE_URL);
+      url.searchParams.set("lat", String(body.lat));
+      url.searchParams.set("lon", String(body.lon));
+      url.searchParams.set("limit", "1");
+      url.searchParams.set("lang", "en");
+
+      const data = await fetchJson(url.toString());
+      const features = Array.isArray(data.features)
+        ? data.features as PhotonFeature[]
+        : [];
+      const feature = features[0];
+
+      if (!feature) {
+        return jsonResponse({
+          success: true,
+          place: {
+            name: "Pinned location",
+            address: "",
+            type: "Pinned location",
+            category: "manual_pin",
+            lat: body.lat,
+            lng: body.lon,
+          },
+          provider: "photon",
+        });
+      }
+
+      const properties = feature.properties ?? {};
+      const coordinates = getPhotonCoordinates(feature);
+      if (!coordinates) throw new Error("Invalid reverse-geocoding response");
+
+      return jsonResponse({
+        success: true,
+        place: {
+          name: photonName(properties) || "Pinned location",
+          address: photonAddress(properties),
+          type: cleanText(properties.osm_value) ||
+            cleanText(properties.type) ||
+            "Pinned location",
+          category: photonCategory(properties),
+          lat: body.lat,
+          lng: body.lon,
+        },
+        provider: "photon",
+        attribution: "Place data © OpenStreetMap contributors",
+      });
+    } catch {
+      return jsonResponse({
+        success: true,
+        place: {
+          name: "Pinned location",
+          address: "",
+          type: "Pinned location",
+          category: "manual_pin",
+          lat: body.lat,
+          lng: body.lon,
+        },
+        provider: "photon",
+        notice: "Address lookup was unavailable. The selected coordinates were kept.",
+      });
+    }
+  }
+
   if (action === "retrieve") {
     const id = cleanText(body.id);
 
@@ -600,7 +677,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         );
       }
 
-      return jsonResponse(place);
+      const { success: _success, provider, ...placeDetails } = place;
+      return jsonResponse({
+        success: true,
+        place: placeDetails,
+        provider,
+        attribution: "Place data © OpenStreetMap contributors",
+      });
     } catch {
       return jsonResponse(
         {

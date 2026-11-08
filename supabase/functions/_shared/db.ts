@@ -51,6 +51,7 @@ const BOOKING_COLUMNS =
   'id, reference, access_token_hash, status, customer_name, customer_phone, ' +
   'pickup_lat, pickup_lng, destination_name, destination_lat, destination_lng, ' +
   'destination_address, destination_type, rider_lat, rider_lng, rider_location_updated_at, ' +
+  'pickup_name, route_geometry, route_provider, ' +
   'distance_km, duration_minutes, fare_rwf, created_at, rider_id, ' +
   'rider:riders(name, phone, plate_number, passport_photo_path)';
 
@@ -103,6 +104,7 @@ export async function publicView(b: any) {
     reference: b.reference,
     status: b.status,
     destination_name: b.destination_name,
+    pickup_name: b.pickup_name ?? 'Pickup point',
     destination_address: b.destination_address ?? null,
     destination_type: b.destination_type ?? null,
     pickup: [b.pickup_lat, b.pickup_lng],
@@ -111,6 +113,8 @@ export async function publicView(b: any) {
     rider_location_updated_at: liveRiderLocation ? b.rider_location_updated_at : null,
     distance_km: b.distance_km,
     duration_minutes: b.duration_minutes,
+    route_geometry: Array.isArray(b.route_geometry) ? b.route_geometry : null,
+    route_provider: b.route_provider ?? null,
     fare_rwf: b.fare_rwf,
     created_at: b.created_at,
     rider: showRider

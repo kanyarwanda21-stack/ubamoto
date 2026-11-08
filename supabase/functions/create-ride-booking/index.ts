@@ -32,6 +32,8 @@ Deno.serve(async (req) => {
       String(body.destination_address ?? '').trim().slice(0, 500) || null;
     const destinationType =
       String(body.destination_type ?? '').trim().slice(0, 50) || null;
+    const pickupName =
+      String(body.pickup_name ?? '').trim().slice(0, 200) || 'Pickup point';
 
     if (body.accepted_terms !== true) {
       return fail('Please accept the Terms of Service and Privacy Policy to continue.');
@@ -90,6 +92,7 @@ Deno.serve(async (req) => {
           customer_phone: phone,
           pickup_lat: quote.pickup[0],
           pickup_lng: quote.pickup[1],
+          pickup_name: pickupName,
           destination_name: destinationName,
           destination_address: destinationAddress,
           destination_type: destinationType,
@@ -97,6 +100,8 @@ Deno.serve(async (req) => {
           destination_lng: quote.destination[1],
           distance_km: quote.km,
           duration_minutes: quote.minutes,
+          route_geometry: quote.geometry,
+          route_provider: quote.routingProvider,
           fare_rwf: quote.fare,
           fare_policy_version: quote.farePolicyVersion,
           rider_payout_rwf: quote.riderPayout,

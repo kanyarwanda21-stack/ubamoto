@@ -152,9 +152,11 @@ function formatWhen(iso) {
 const STATUS_LABEL = {
   requested: 'Waiting for a rider',
   assigned: 'Rider assigned',
+  arrived: 'Rider has arrived',
   in_progress: 'Ride in progress',
   completed: 'Completed',
   cancelled: 'Cancelled',
+  expired: 'Request expired',
 };
 
 const formatRef = (ref) => (ref ? `UB-${ref.slice(0, 4)}-${ref.slice(4)}` : '');
@@ -220,7 +222,9 @@ function RidesScreen({ rides, onNavigate, onRebook, onClearRides, onCancelRide, 
   const totalFare = rides
     .filter((ride) => ride.status !== 'cancelled')
     .reduce((sum, ride) => sum + (Number(ride.fareRwf) || 0), 0);
-  const hasActive = rides.some((ride) => ['requested', 'assigned', 'in_progress'].includes(ride.status));
+  const hasActive = rides.some((ride) =>
+    ['requested', 'assigned', 'arrived', 'in_progress'].includes(ride.status)
+  );
 
   async function cancel(ride) {
     setBusyId(ride.id);

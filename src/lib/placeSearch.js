@@ -11,6 +11,11 @@ export function isValidRwandaCoordinate(lat, lng) {
     lng <= 30.95;
 }
 
+export function hasValidPlaceCoordinates(place) {
+  return Boolean(place &&
+    isValidRwandaCoordinate(place.lat, place.lng));
+}
+
 export function resultCategory(featureType) {
   if (featureType === 'poi') return 'Business';
   if (featureType === 'address') return 'Address';

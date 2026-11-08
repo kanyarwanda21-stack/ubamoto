@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { MapContainer, Marker, Polyline, Popup, TileLayer, ZoomControl, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import PortalShell from './portalshell.jsx';
 import { riderApi } from './lib/api';
 import { formatRwf } from './fare';
@@ -15,10 +17,107 @@ const mapLink = ([lat, lng]) =>
 
 const STATUS_TEXT = {
   assigned: 'Go to pickup',
+  arrived: 'Waiting at pickup',
   in_progress: 'Ride in progress',
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
+
+const RIDER_TILE = {
+  url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '&copy; OpenStreetMap contributors',
+};
+
+const pickupIcon = L.divIcon({
+  className: '',
+  html: '<div style="background:#1677ff;color:white;border:3px solid white;border-radius:50%;width:24px;height:24px;box-shadow:0 2px 8px #0005"></div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+const destinationIcon = L.divIcon({
+  className: '',
+  html: '<div style="background:#e5484d;color:white;border:3px solid white;border-radius:50%;width:24px;height:24px;box-shadow:0 2px 8px #0005"></div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+const currentIcon = L.divIcon({
+  className: '',
+  html: '<div style="background:#111827;color:white;border:3px solid white;border-radius:50%;width:18px;height:18px;box-shadow:0 2px 8px #0005"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
+function RiderRouteFitter({ coordinates }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!Array.isArray(coordinates) || coordinates.length === 0) return;
+    const bounds = L.latLngBounds(coordinates);
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 });
+  }, [coordinates, map]);
+  return null;
+}
+
+function isValidRiderMapPoint(point) {
+  return Array.isArray(point) &&
+    point.length === 2 &&
+    Number.isFinite(point[0]) &&
+    Number.isFinite(point[1]);
+}
+
+function RiderJobMap({ job, currentLocation }) {
+  const pickup = isValidRiderMapPoint(job.pickup) ? job.pickup : null;
+  const destination = isValidRiderMapPoint(job.destination) ? job.destination : null;
+  const storedGeometry = Array.isArray(job.route_geometry)
+    ? job.route_geometry
+    : [];
+  const route = storedGeometry.length >= 2 &&
+    storedGeometry.every(isValidRiderMapPoint)
+    ? storedGeometry
+    : [];
+  const sharedLocation =
+    job.rider_location_updated_at &&
+    Date.now() - new Date(job.rider_location_updated_at).getTime() <= 2 * 60 * 1000 &&
+    Date.now() - new Date(job.rider_location_updated_at).getTime() >= 0 &&
+    isValidRiderMapPoint(job.rider_location)
+      ? job.rider_location
+      : null;
+  const mapLocation = isValidRiderMapPoint(currentLocation) ? currentLocation : sharedLocation;
+  if (!pickup || !destination) return null;
+
+  return (
+    <div className="rider-map" aria-label={`Map for ride to ${job.destination_name}`}>
+      <MapContainer
+        center={pickup}
+        zoom={14}
+        scrollWheelZoom
+        style={{ height: 280, width: '100%' }}
+      >
+        <TileLayer attribution={RIDER_TILE.attribution} url={RIDER_TILE.url} />
+        <ZoomControl position="bottomright" />
+        <RiderRouteFitter coordinates={route.length >= 2 ? route : [pickup, destination]} />
+        <Marker position={pickup} icon={pickupIcon}>
+          <Popup><strong>Pickup</strong><br />{job.pickup_name || 'Pickup point'}</Popup>
+        </Marker>
+        <Marker position={destination} icon={destinationIcon}>
+          <Popup><strong>Destination</strong><br />{job.destination_name}</Popup>
+        </Marker>
+        {mapLocation && (
+          <Marker position={mapLocation} icon={currentIcon}>
+            <Popup>Your current GPS position</Popup>
+          </Marker>
+        )}
+        {route.length >= 2 && (
+          <Polyline positions={route} pathOptions={{ color: '#1677ff', weight: 5 }} />
+        )}
+      </MapContainer>
+      {route.length < 2 && (
+        <p className="portal-note">Saved road route unavailable. Use the pickup and destination directions above.</p>
+      )}
+    </div>
+  );
+}
 
 function RiderApp() {
   const [me, setMe] = useState(null);
@@ -27,6 +126,7 @@ function RiderApp() {
   const [jobs, setJobs] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [message, setMessage] = useState('');
+  const [currentLocation, setCurrentLocation] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -57,7 +157,9 @@ function RiderApp() {
     return () => clearInterval(timer);
   }, [me, load]);
 
-  const liveJobCount = jobs.filter((job) => ['assigned', 'in_progress'].includes(job.status)).length;
+  const liveJobCount = jobs.filter((job) =>
+    ['assigned', 'arrived', 'in_progress'].includes(job.status)
+  ).length;
 
   useEffect(() => {
     if (!navigator.geolocation || liveJobCount === 0) return undefined;
@@ -66,9 +168,10 @@ function RiderApp() {
       async (position) => {
         const { latitude, longitude, accuracy } = position.coords;
         if (accuracy > 1000) return;
+        setCurrentLocation([latitude, longitude]);
         await Promise.all(
           jobs
-            .filter((job) => ['assigned', 'in_progress'].includes(job.status))
+            .filter((job) => ['assigned', 'arrived', 'in_progress'].includes(job.status))
             .map((job) => riderApi('update_location', {
               id: job.id,
               lat: latitude,
@@ -119,8 +222,8 @@ function RiderApp() {
     );
   }
 
-  const live = jobs.filter((job) => ['assigned', 'in_progress'].includes(job.status));
-  const past = jobs.filter((job) => !['assigned', 'in_progress'].includes(job.status));
+  const live = jobs.filter((job) => ['assigned', 'arrived', 'in_progress'].includes(job.status));
+  const past = jobs.filter((job) => !['assigned', 'arrived', 'in_progress'].includes(job.status));
 
   return (
     <>
@@ -185,6 +288,7 @@ function RiderApp() {
               <p className="portal-note">
                 {formatRwf(job.fare_rwf)} · {Number(job.distance_km).toFixed(1)} km · Ref {job.reference}
               </p>
+              <RiderJobMap job={job} currentLocation={currentLocation} />
 
               <div className="portal-actions">
                 <a className="portal-btn" href={`tel:${job.customer_phone}`}>Call customer</a>
@@ -199,13 +303,18 @@ function RiderApp() {
               <div className="portal-actions">
                 {job.status === 'assigned' && (
                   <>
-                    <button type="button" className="portal-btn" disabled={busyId === job.id} onClick={() => act('start', job.id)}>
-                      Confirm pickup & start
+                    <button type="button" className="portal-btn" disabled={busyId === job.id} onClick={() => act('arrived', job.id)}>
+                      Rider arrived at pickup
                     </button>
                     <button type="button" className="portal-btn portal-btn-danger" disabled={busyId === job.id} onClick={() => act('release', job.id)}>
                       Give back
                     </button>
                   </>
+                )}
+                {job.status === 'arrived' && (
+                  <button type="button" className="portal-btn" disabled={busyId === job.id} onClick={() => act('start', job.id)}>
+                    Confirm pickup & start
+                  </button>
                 )}
                 {job.status === 'in_progress' && (
                   <button type="button" className="portal-btn" disabled={busyId === job.id} onClick={() => act('complete', job.id)}>

@@ -5,6 +5,7 @@ import {
   fareForKm,
   FARE_POLICY_VERSION,
   isValidPoint,
+  normalizeProviderRoute,
   json,
   rejectDisallowedOrigin,
   preflightHeaders,
@@ -30,26 +31,56 @@ Deno.serve(async (req) => {
       return fail('Pickup and destination must both be inside Rwanda.');
     }
 
-    const token = Deno.env.get('MAPBOX_TOKEN');
-    if (!token) return fail('Routing is not configured.', 500);
-
-    const url =
-      'https://api.mapbox.com/directions/v5/mapbox/driving/' +
+    const osrmUrl =
+      'https://router.project-osrm.org/route/v1/driving/' +
       `${pickup[1]},${pickup[0]};${destination[1]},${destination[0]}` +
-      `?overview=full&geometries=geojson&access_token=${token}`;
+      '?overview=full&geometries=geojson&steps=false';
 
-    let response: Response;
+    let route: any = null;
+    let routingProvider = 'osrm';
+    let normalizedRoute: { geometry: Array<[number, number]>; distanceKm: number; durationMinutes: number } | null = null;
+
     try {
-      response = await fetch(url);
+      const osrmResponse = await fetch(osrmUrl, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (osrmResponse.ok) {
+        const osrmData = await osrmResponse.json();
+        route = osrmData.routes?.[0] ?? null;
+        normalizedRoute = normalizeProviderRoute(route);
+      }
     } catch {
-      return fail('Routing is temporarily unavailable. Try again.', 502);
+      route = null;
     }
-    if (!response.ok) return fail('Routing is temporarily unavailable. Try again.', 502);
 
-    const route = (await response.json()).routes?.[0];
-    if (!route) return fail('No road route found between these points.', 422);
+    if (!normalizedRoute) {
+      const token = Deno.env.get('MAPBOX_TOKEN');
+      if (!token) return fail('Routing is temporarily unavailable. Try again.', 502);
 
-    const km = Math.round(route.distance / 10) / 100; // metres -> km, 2 decimals
+      routingProvider = 'mapbox';
+      const mapboxUrl =
+        'https://api.mapbox.com/directions/v5/mapbox/driving/' +
+        `${pickup[1]},${pickup[0]};${destination[1]},${destination[0]}` +
+        `?overview=full&geometries=geojson&access_token=${token}`;
+
+      try {
+        const mapboxResponse = await fetch(mapboxUrl, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (mapboxResponse.ok) {
+          const mapboxData = await mapboxResponse.json();
+          route = mapboxData.routes?.[0] ?? null;
+          normalizedRoute = normalizeProviderRoute(route);
+        }
+      } catch {
+        route = null;
+      }
+    }
+
+    if (!normalizedRoute) return fail('No valid road route found between these points.', 422);
+
+    const { geometry, distanceKm: km, durationMinutes: minutes } = normalizedRoute;
     if (km < 0.05) {
       return fail('Pickup and destination are almost the same point. Choose a different destination.', 422);
     }
@@ -57,7 +88,6 @@ Deno.serve(async (req) => {
       return fail(`Trips are limited to ${MAX_TRIP_KM} km. Choose a closer destination.`, 422);
     }
 
-    const minutes = Math.max(1, Math.round(route.duration / 60));
     const fare = fareForKm(km);
     const allocation = allocateFare(fare);
     const expires_at = Date.now() + QUOTE_LIFETIME_MS;
@@ -67,6 +97,8 @@ Deno.serve(async (req) => {
       destination,
       km,
       minutes,
+      geometry,
+      routingProvider,
       fare,
       farePolicyVersion: FARE_POLICY_VERSION,
       riderPayout: allocation.riderPayout,
@@ -81,7 +113,8 @@ Deno.serve(async (req) => {
       fare_rwf: fare,
       expires_at,
       quote,
-      geometry: route.geometry.coordinates.map(([lng, lat]: number[]) => [lat, lng]),
+      geometry,
+      routing_provider: routingProvider,
     });
   } catch {
     return fail('Invalid request.');

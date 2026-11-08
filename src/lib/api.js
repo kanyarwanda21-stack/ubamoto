@@ -41,6 +41,9 @@ export const searchPlaces = (query, near, session) =>
 export const retrievePlace = (id, session) =>
   call('search-places', { action: 'retrieve', id, session });
 
+export const reverseGeocode = (lat, lon, session) =>
+  call('search-places', { action: 'reverse', lat, lon, session });
+
 export const estimateRoute = (pickup, destination) =>
   call('estimate-route', { pickup, destination });
 

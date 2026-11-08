@@ -62,6 +62,41 @@ export function isValidPoint(p: unknown): p is [number, number] {
   );
 }
 
+export function isValidRouteGeometry(value: unknown): value is Array<[number, number]> {
+  return Array.isArray(value) && value.length >= 2 && value.every(isValidPoint);
+}
+
+export function normalizeProviderRoute(
+  route: unknown,
+): { geometry: Array<[number, number]>; distanceKm: number; durationMinutes: number } | null {
+  if (!route || typeof route !== 'object') return null;
+  const candidate = route as {
+    distance?: unknown;
+    duration?: unknown;
+    geometry?: { coordinates?: unknown };
+  };
+  if (typeof candidate.distance !== 'number' ||
+      typeof candidate.duration !== 'number' ||
+      !Number.isFinite(candidate.distance) ||
+      !Number.isFinite(candidate.duration)) return null;
+  if (!candidate.geometry || !Array.isArray(candidate.geometry.coordinates)) return null;
+
+  const converted: Array<[number, number]> = [];
+  for (const coordinate of candidate.geometry.coordinates) {
+    if (!Array.isArray(coordinate) || coordinate.length !== 2) return null;
+    const [lng, lat] = coordinate;
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+    const point: [number, number] = [lat, lng];
+    if (!isValidPoint(point)) return null;
+    converted.push(point);
+  }
+  if (!isValidRouteGeometry(converted)) return null;
+
+  const distanceKm = Math.round(Number(candidate.distance) / 10) / 100;
+  const durationMinutes = Math.max(1, Math.round(Number(candidate.duration) / 60));
+  return { geometry: converted, distanceKm, durationMinutes };
+}
+
 export function normalizePhone(input: string) {
   const cleaned = input.replace(/[\s().-]/g, '');
   const match = /^(?:\+?250|0)?(7[2389]\d{7})$/.exec(cleaned);
@@ -133,6 +168,8 @@ export type Quote = {
   destination: [number, number];
   km: number;
   minutes: number;
+  geometry: Array<[number, number]>;
+  routingProvider: string;
   fare: number;
   farePolicyVersion: string;
   riderPayout: number;
